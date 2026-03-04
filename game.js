@@ -19,11 +19,17 @@ const ENERGY_ITEMS = {
 };
 
 const BUILDING_DEFS = {
-  miner:    { label: '채굴기',      color: 0x4a2c8a, icon: '⛏️', baseW: 4, baseH: 2, resource: 'mineral', rate: 1,  isPipe: false, isEnergyStorage: false, isWarehouse: false },
-  refinery: { label: '정제기',      color: 0x1a4a6a, icon: '🔧', baseW: 4, baseH: 2, resource: 'mineral', rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: false },
-  estore:   { label: '에너지저장고', color: 0x7a4a00, icon: '🔋', baseW: 4, baseH: 2, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: true,  isWarehouse: false },
-  warehouse:{ label: '창고',         color: 0x2a4a6a, icon: '📦', baseW: 4, baseH: 2, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: true  },
-  pipe:     { label: '파이프',        color: 0x1a3a2a, icon: '🔗', baseW: 1, baseH: 1, resource: '',        rate: 0,  isPipe: true,  isEnergyStorage: false, isWarehouse: false },
+  miner:    { label: '채굴기',      color: 0x4a2c8a, icon: '⛏️', baseW: 4, baseH: 2, resource: 'mineral', rate: 1,  isPipe: false, isEnergyStorage: false, isWarehouse: false, isBossGate: false },
+  refinery: { label: '정제기',      color: 0x1a4a6a, icon: '🔧', baseW: 4, baseH: 2, resource: 'mineral', rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: false, isBossGate: false },
+  estore:   { label: '에너지저장고', color: 0x7a4a00, icon: '🔋', baseW: 4, baseH: 2, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: true,  isWarehouse: false, isBossGate: false },
+  warehouse:{ label: '창고',         color: 0x2a4a6a, icon: '📦', baseW: 4, baseH: 2, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: true,  isBossGate: false },
+  bossgate: { label: '보스 게이트',  color: 0x4a0a0a, icon: '🌀', baseW: 4, baseH: 3, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: false, isBossGate: true  },
+  pipe:     { label: '파이프',        color: 0x1a3a2a, icon: '🔗', baseW: 1, baseH: 1, resource: '',        rate: 0,  isPipe: true,  isEnergyStorage: false, isWarehouse: false, isBossGate: false },
+};
+
+// 보스게이트 에너지 충전 요구량 (stage -> cost)
+const BOSS_GATE_COST = {
+  '1-BOSS': 30,   // 에너지 파편 기준
 };
 
 const ESTORE_UPGRADES = [
@@ -34,17 +40,39 @@ const ESTORE_UPGRADES = [
   { level: 5, slots: 10, slotSize: 500, label: 'Lv.5 MAX', upgradeCost: null },
 ];
 
+// 아이템 툴팁 설명
+const ITEM_TOOLTIPS = {
+  mineral:         '채굴기로 생산되는 기본 자원',
+  energy_basic:    '기지 건물 동력원. 파편 상태',
+  energy_mid:      '기지 건물 동력원. 압축 상태 (×5)',
+  energy_high:     '기지 건물 동력원. 순수 상태 (×20)',
+  core_efficiency: '건물에 장착 → 생산 효율 +20%',
+  core_reduce:     '건물에 장착 → 에너지 소모 -25%',
+  gold:            '골드 — 상단 별도 표시',
+  gate_shard:      '차원의 파편 — 다음 구역 해금',
+  upgrade_crystal: '강화 결정 — 건물 강화 가능',
+};
+
 const INV_COLS = 10;
 const INV_ROWS = 3;
 const INV_MAX  = 100;
 
 const ITEM_DEFS = {
-  mineral:      { label: '광물',       icon: '⛏️', color: 0x9b59b6, bg: 0x2a1a4a },
-  energy_basic: { label: '에너지 파편', icon: '⚡', color: 0xf1c40f, bg: 0x3a3000 },
-  energy_mid:   { label: '압축 에너지', icon: '🔆', color: 0xe67e22, bg: 0x3a2000 },
-  energy_high:  { label: '순수 에너지', icon: '💠', color: 0x3498db, bg: 0x001a3a },
-  gold:         { label: '골드',        icon: '🪙', color: 0xf1c40f, bg: 0x3a3000 },
-  potion:       { label: '포션',        icon: '🧪', color: 0x2ecc71, bg: 0x003a1a },
+  // 기지 자원
+  mineral:        { label: '광물',         icon: '⛏️', color: 0x9b59b6, bg: 0x2a1a4a },
+  // 에너지 (필드 드롭 전용)
+  energy_basic:   { label: '에너지 파편',  icon: '⚡', color: 0xf1c40f, bg: 0x2a2000 },
+  energy_mid:     { label: '압축 에너지',  icon: '🔆', color: 0xe67e22, bg: 0x3a1500 },
+  energy_high:    { label: '순수 에너지',  icon: '💠', color: 0x3498db, bg: 0x00103a },
+  // 코어 (필드 드롭 — 건물 업그레이드용)
+  core_efficiency:{ label: '효율 코어',    icon: '🟡', color: 0xf39c12, bg: 0x2a1a00 },
+  core_reduce:    { label: '절약 코어',    icon: '🔵', color: 0x2980b9, bg: 0x001a2a },
+  // 골드
+  gold:           { label: '골드',         icon: '🪙', color: 0xf1c40f, bg: 0x3a3000 },
+  // 보스 드롭
+  gate_shard:     { label: '차원의 파편',  icon: '🔮', color: 0x9b59b6, bg: 0x1a0a2a },  // 다음 스테이지 해금
+  upgrade_crystal:{ label: '강화 결정',   icon: '💎', color: 0x1abc9c, bg: 0x001a18 },  // 건물 강화
+  potion:         { label: '포션',         icon: '🧪', color: 0x2ecc71, bg: 0x003a1a },
 };
 
 // 글로벌 기지 상태 저장소 (마을 이동 시 유지용)
@@ -63,6 +91,8 @@ class Inventory {
     this.slots = Array.from({ length: size }, () => ({ itemId: null, count: 0 }));
   }
   add(itemId, amount = 1) {
+    // 골드는 인벤토리에 저장 불가 — 글로벌 PLAYER_GOLD로만 관리
+    if (itemId === 'gold') { PLAYER_GOLD += amount; return true; }
     let remaining = amount;
     for (const slot of this.slots) {
       if (slot.itemId !== itemId || remaining <= 0) continue;
@@ -132,6 +162,9 @@ class ItemStorage extends Inventory {
 const playerInventory = new Inventory();
 const townStorage     = new ItemStorage('마을 창고');
 
+// 골드 — 인벤토리 저장 안됨, 별도 글로벌 변수
+let PLAYER_GOLD = 0;
+
 class InventoryUI {
   constructor(scene, inv, options = {}) {
     this.scene = scene; this.inv = inv;
@@ -141,9 +174,9 @@ class InventoryUI {
     this.cols = options.cols || Math.min(10, this.inv.slots.length);
     this.rows = options.rows || Math.ceil(this.inv.slots.length / this.cols);
 
-    const SLOT = 46; const PAD = 8;
-    this.pw = PAD*2 + SLOT*this.cols + (this.cols-1)*4;
-    this.ph = 54 + PAD*2 + SLOT*this.rows + (this.rows-1)*4 + 12;
+    const SLOT = 46, GAP = 4, PAD = 8, HEADER = 38;
+    this.pw = PAD*2 + SLOT*this.cols + GAP*(this.cols-1);
+    this.ph = HEADER + PAD*2 + SLOT*this.rows + GAP*(this.rows-1) + PAD;
     this.ox = options.x !== undefined ? options.x : Math.floor((GAME_WIDTH - this.pw) / 2);
     this.oy = options.y !== undefined ? options.y : Math.floor((GAME_HEIGHT - this.ph) / 2);
 
@@ -155,41 +188,81 @@ class InventoryUI {
   _build() {
     const { scene, pw, ph } = this;
     const c = this.container;
+    const SLOT = 46, GAP = 4, PAD = 8;
+    const HEADER = 38;  // 제목 + 버튼 영역 높이
 
+    // ── 배경 ──
     c.add(scene.add.rectangle(0, 0, pw, ph, 0x0a0015, 0.97).setOrigin(0).setStrokeStyle(2, 0x6c3483));
-    c.add(scene.add.text(pw/2, 18, this.title, { fontSize:'15px', fill:'#c39bd3', fontFamily:'Arial', fontStyle:'bold' }).setOrigin(0.5));
 
-    // 나누기 모드 버튼
-    const modeBtn = scene.add.text(pw-46, 16, `이동: ${SPLIT_LABELS[GLOBAL_SPLIT_MODE]}`, {
-      fontSize:'10px', fill:'#f1c40f', backgroundColor:'#3a1a2a', padding:{x:4,y:2}
-    }).setOrigin(1,0.5).setInteractive({useHandCursor:true});
-    modeBtn.on('pointerdown', () => {
+    // ── 제목 (좌측 정렬) ──
+    c.add(scene.add.text(PAD, 12, this.title, {
+      fontSize:'14px', fill:'#c39bd3', fontFamily:'Arial', fontStyle:'bold'
+    }).setOrigin(0, 0.5));
+
+    // ── 이동 모드 버튼 (제목 오른쪽, 닫기 왼쪽) ──
+    this.modeBtn = scene.add.text(pw - 70, 12, `[${SPLIT_LABELS[GLOBAL_SPLIT_MODE]}]`, {
+      fontSize:'11px', fill:'#f1c40f', backgroundColor:'#2a1a0a',
+      padding:{x:5, y:3}, fixedWidth: 50
+    }).setOrigin(0, 0.5).setInteractive({useHandCursor:true});
+    this.modeBtn.on('pointerdown', () => {
       GLOBAL_SPLIT_MODE = GLOBAL_SPLIT_MODE === 'ALL' ? 'HALF' : (GLOBAL_SPLIT_MODE === 'HALF' ? 'ONE' : 'ALL');
       scene.events.emit('updateSplitMode');
     });
-    scene.events.on('updateSplitMode', () => { if(modeBtn.active) modeBtn.setText(`이동: ${SPLIT_LABELS[GLOBAL_SPLIT_MODE]}`); });
-    c.add(modeBtn);
+    scene.events.on('updateSplitMode', () => {
+      if (this.modeBtn?.active) this.modeBtn.setText(`[${SPLIT_LABELS[GLOBAL_SPLIT_MODE]}]`);
+    });
+    c.add(this.modeBtn);
 
-    const closeBtn = scene.add.rectangle(pw-16, 16, 24, 24, 0x3a1a2a).setInteractive({ useHandCursor: true });
-    c.add([closeBtn, scene.add.text(pw-16, 16, '✕', { fontSize:'12px', fill:'#cc4444', fontFamily:'Arial' }).setOrigin(0.5)]);
-    closeBtn.on('pointerdown', () => this.hide());
+    // ── 닫기 버튼 (우상단) ──
+    const closeRect = scene.add.rectangle(pw - 18, 12, 22, 22, 0x3a1a2a).setOrigin(0.5).setInteractive({useHandCursor:true});
+    const closeTxt  = scene.add.text(pw - 18, 12, '✕', { fontSize:'12px', fill:'#cc4444', fontFamily:'Arial' }).setOrigin(0.5);
+    closeRect.on('pointerdown', () => this.hide());
+    c.add([closeRect, closeTxt]);
 
+    // ── 구분선 ──
+    const divider = scene.add.rectangle(0, HEADER - 2, pw, 1, 0x4a2c6a).setOrigin(0);
+    c.add(divider);
+
+    // ── 슬롯 그리드 ──
     for (let i = 0; i < this.inv.slots.length; i++) {
-      const r = Math.floor(i / this.cols), col = i % this.cols;
-      const sx = 8 + col*(50), sy = 40 + r*(50);
+      const row = Math.floor(i / this.cols), col = i % this.cols;
+      const sx = PAD + col * (SLOT + GAP);
+      const sy = HEADER + PAD + row * (SLOT + GAP);
 
-      const slotBg = scene.add.rectangle(sx, sy, 46, 46, 0x1a0a2a).setOrigin(0).setStrokeStyle(1, 0x4a2c6a);
+      const slotBg = scene.add.rectangle(sx, sy, SLOT, SLOT, 0x1a0a2a).setOrigin(0).setStrokeStyle(1, 0x4a2c6a);
       slotBg.setInteractive({ dropZone: true });
       slotBg.inv = this.inv; slotBg.slotIdx = i;
       slotBg.isEnergyStorage = this.title.includes('에너지저장고');
       c.add(slotBg); this.slotGfxList.push(slotBg);
 
-      const iconTxt = scene.add.text(sx+23, sy+15, '', { fontSize: '20px', fontFamily: 'Arial' }).setOrigin(0.5);
-      iconTxt.setInteractive({ draggable: true });
+      // 아이콘: 슬롯 중앙
+      const iconTxt = scene.add.text(sx + SLOT/2, sy + SLOT/2 - 4, '', {
+        fontSize:'20px', fontFamily:'Arial'
+      }).setOrigin(0.5);
+      iconTxt.setInteractive({ draggable: true, useHandCursor: true });
       iconTxt.inv = this.inv; iconTxt.slotIdx = i;
 
-      const cntTxt  = scene.add.text(sx+42, sy+42, '', { fontSize:'10px', fill:'#f1c40f', fontFamily:'Arial', fontStyle:'bold' }).setOrigin(1, 1);
-      c.add([iconTxt, cntTxt]); this.slotTexts.push({ icon: iconTxt, count: cntTxt });
+      // 클릭으로 이동
+      slotBg.setInteractive({ dropZone: true, useHandCursor: true });
+      slotBg.on('pointerdown', () => this._onSlotClick(i));
+
+      // 아이템 이름: 슬롯 하단
+      const nameTxt = scene.add.text(sx + SLOT/2, sy + SLOT - 5, '', {
+        fontSize:'8px', fill:'#aaaaaa', fontFamily:'Arial'
+      }).setOrigin(0.5, 1);
+
+      // 수량: 슬롯 우하단
+      const cntTxt = scene.add.text(sx + SLOT - 3, sy + SLOT - 3, '', {
+        fontSize:'10px', fill:'#f1c40f', fontFamily:'Arial', fontStyle:'bold'
+      }).setOrigin(1, 1);
+
+      // 툴팁 — hover
+      slotBg.on('pointerover', (ptr) => this._showTooltip(i, ptr));
+      slotBg.on('pointerout',  ()    => this._hideTooltip());
+      iconTxt.on('pointerover', (ptr) => this._showTooltip(i, ptr));
+      iconTxt.on('pointerout',  ()    => this._hideTooltip());
+
+      c.add([iconTxt, cntTxt, nameTxt]); this.slotTexts.push({ icon: iconTxt, count: cntTxt, name: nameTxt });
     }
 
     // 씬 단위 드래그 앤 드롭 이벤트 등록 (최초 1회)
@@ -224,8 +297,8 @@ class InventoryUI {
 
         // 화면의 모든 UI 갱신
         if(scene.inventoryUI) scene.inventoryUI.refresh();
-        if(scene.storageUI) scene.storageUI.refresh();
-        if(scene.buildingUI) scene.buildingUI.refresh();
+        if(scene.storageUI)   scene.storageUI.refresh();
+        if(scene._refreshPopupSlots) scene._refreshPopupSlots();
       });
       scene._dragSetupDone = true;
     }
@@ -234,16 +307,115 @@ class InventoryUI {
   refresh() {
     for (let i = 0; i < this.inv.slots.length; i++) {
       const slot = this.inv.slots[i];
-      const { icon, count } = this.slotTexts[i];
+      const { icon, count, name } = this.slotTexts[i];
       if (slot && slot.itemId) {
         const def = ITEM_DEFS[slot.itemId];
         icon.setText(def ? def.icon : '?');
         count.setText(slot.count >= this.inv.maxStack ? 'MAX' : String(slot.count));
+        if (name) name.setText('');  // 아이콘 있으면 이름 숨김 (공간 절약)
         this.slotGfxList[i].setFillStyle(def ? def.bg : 0x1a0a2a);
       } else {
-        icon.setText(''); count.setText(''); this.slotGfxList[i].setFillStyle(0x1a0a2a);
+        icon.setText(''); count.setText('');
+        if (name) name.setText('');
+        this.slotGfxList[i].setFillStyle(0x1a0a2a);
       }
     }
+  }
+
+  // ── 클릭 이동: 선택된 슬롯 → 다른 슬롯으로 이동
+  _onSlotClick(idx) {
+    const scene = this.scene;
+    const sel = scene._invSel;
+
+    if (!sel) {
+      // 1차 클릭 — 선택
+      const slot = this.inv.slots[idx];
+      if (!slot?.itemId) return;
+      scene._invSel = { ui: this, idx };
+      this.slotGfxList[idx]?.setStrokeStyle(2, 0xf1c40f);
+    } else {
+      // 2차 클릭 — 이동
+      const { ui: srcUi, idx: srcIdx } = sel;
+      scene._invSel = null;
+      srcUi.slotGfxList[srcIdx]?.setStrokeStyle(1, 0x4a2c6a); // 선택 해제
+
+      if (srcUi === this && srcIdx === idx) return; // 같은 슬롯 → 선택 취소
+
+      const srcSlot = srcUi.inv.slots[srcIdx];
+      if (!srcSlot?.itemId) return;
+
+      // 골드는 이동 불가
+      if (srcSlot.itemId === 'gold') {
+        if (scene._showHint) scene._showHint('🪙 골드는 별도 관리됩니다');
+        return;
+      }
+
+      // 대상이 에너지저장고 / 보스게이트면 에너지 아이템만 허용
+      const destIsEnergySlot = this.title.includes('에너지저장고') || this.title.includes('보스 게이트');
+      if (destIsEnergySlot && !srcSlot.itemId.startsWith('energy_')) {
+        if (scene._showHint) scene._showHint('❌ 에너지 아이템만 넣을 수 있습니다');
+        return;
+      }
+
+      const amt = GLOBAL_SPLIT_MODE === 'HALF' ? Math.ceil(srcSlot.count / 2)
+                : GLOBAL_SPLIT_MODE === 'ONE'  ? 1
+                : srcSlot.count;
+
+      srcUi.inv.move(srcIdx, this.inv, idx, amt);
+
+      // 모든 열린 UI 갱신
+      srcUi.refresh();
+      this.refresh();
+      if (scene.inventoryUI)        scene.inventoryUI.refresh();
+      if (scene.storageUI)          scene.storageUI.refresh();
+      if (scene._refreshPopupSlots) scene._refreshPopupSlots();
+    }
+  }
+
+  _clearSelection() {
+    const scene = this.scene;
+    if (scene._invSel) {
+      scene._invSel.ui.slotGfxList[scene._invSel.idx]?.setStrokeStyle(1, 0x4a2c6a);
+      scene._invSel = null;
+    }
+    this._selectedSlot = undefined;
+  }
+
+  // ── 툴팁 (씬 절대좌표 기준, depth 300으로 최상단)
+  _showTooltip(idx, ptr) {
+    this._hideTooltip();
+    const slot = this.inv.slots[idx]; if (!slot?.itemId) return;
+    const def  = ITEM_DEFS[slot.itemId]; if (!def) return;
+    const scene = this.scene;
+
+    const lines = [`${def.icon}  ${def.label}`, `보유: ${slot.count}개`];
+    const desc  = ITEM_TOOLTIPS[slot.itemId];
+    if (desc) lines.push(desc);
+
+    const LH = 16, TW = 170, TH = 12 + lines.length * LH;
+    // ptr.worldX/Y 는 화면 좌표 기준으로 정확
+    const wx = ptr.worldX !== undefined ? ptr.worldX : ptr.x;
+    const wy = ptr.worldY !== undefined ? ptr.worldY : ptr.y;
+    const tx = Math.min(wx + 14, GAME_WIDTH  - TW - 4);
+    const ty = Math.max(wy - TH - 10, 56);
+
+    this._tooltipObjs = [];
+    const bg = scene.add.rectangle(tx, ty, TW, TH, 0x060010, 0.97)
+      .setOrigin(0).setDepth(300).setStrokeStyle(1, 0x7c3aad);
+    this._tooltipObjs.push(bg);
+    lines.forEach((l, i) => {
+      const col = i === 0 ? '#f5d020' : i === 1 ? '#99aaff' : '#bbbbbb';
+      const sz  = i === 0 ? '12px' : '10px';
+      const t = scene.add.text(tx + 7, ty + 5 + i * LH, l, {
+        fontSize: sz, fill: col, fontFamily: 'Arial'
+      }).setDepth(301).setOrigin(0);
+      this._tooltipObjs.push(t);
+    });
+  }
+
+  _hideTooltip() {
+    if (this._tooltipObjs) { this._tooltipObjs.forEach(o => { try{o.destroy();}catch(e){} }); }
+    this._tooltipObjs = null;
   }
 
   show() { this.refresh(); this.container.setVisible(true); }
@@ -283,7 +455,9 @@ class HubScene extends Phaser.Scene {
   create() {
     this.cameras.main.fadeIn(300);
     if (!isGameInitialized) {
-      playerInventory.add('energy_basic', 100);
+      if (playerInventory.count('energy_basic')===0 && playerInventory.slots.every(s=>!s.itemId)) {
+        playerInventory.add('energy_basic', 20);  // 초기 지급 (테스트용 소량)
+      }
       isGameInitialized = true;
     }
     this.add.rectangle(0, 50, GAME_WIDTH, GAME_HEIGHT - 50, 0x1a3a1a).setOrigin(0);
@@ -293,7 +467,7 @@ class HubScene extends Phaser.Scene {
           this.add.rectangle(x, y, 40, 40, 0x1e421e).setOrigin(0);
 
     this.baseZone    = this._createBuilding(160, 280, '🏗️', '기지',    0x1a4a2e, 0x2ecc71, '기지로 이동',     'BaseScene');
-    this.fieldZone   = this._createBuilding(800, 280, '🌲', '필드',    0x4a1a1a, 0xe74c3c, '필드로 이동',     'FieldScene');
+    this.fieldZone   = this._createBuilding(800, 280, '🌲', '필드',    0x4a1a1a, 0xe74c3c, '필드로 이동',     'StageSelectScene');
     this.craftZone   = this._createBuilding(480, 130, '⚗️', '제작소',  0x1a1a4a, 0x3498db, '제작소로 이동',   'CraftScene');
     this.storageZone = this._createBuilding(480, 390, '📦', '마을창고', 0x1a3a4a, 0xf1c40f, '[E] 창고 열기',   null);
 
@@ -310,6 +484,8 @@ class HubScene extends Phaser.Scene {
     this.storageUI = new InventoryUI(this, townStorage, { title: '📦 마을 창고', depth: 95, onClose: () => { this.storageOpen = false; } });
     this.storageOpen = false;
     this.inventoryUI = new InventoryUI(this, playerInventory, { title: '🎒 인벤토리', depth: 96, y: 30 });
+    this.goldBg  = this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(12).setStrokeStyle(1,0x888800);
+    this.goldText= this.add.text(GAME_WIDTH-8,15,`🪙 ${PLAYER_GOLD}`,{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(13);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd    = this.input.keyboard.addKeys({ W: 87, A: 65, S: 83, D: 68 });
@@ -365,7 +541,7 @@ class HubScene extends Phaser.Scene {
     this.playerDir.setPosition(nx, ny-16).setAngle({ up:0, down:180, left:270, right:90 }[this.facing] || 0);
 
     let nearHint = '';
-    const zones = [ { zone: this.baseZone, scene: 'BaseScene' }, { zone: this.fieldZone, scene: 'FieldScene' }, { zone: this.craftZone, scene: 'CraftScene' } ];
+    const zones = [ { zone: this.baseZone, scene: 'BaseScene' }, { zone: this.fieldZone, scene: 'StageSelectScene' }, { zone: this.craftZone, scene: 'CraftScene' } ];
     for (const { zone, scene } of zones) {
       if (Phaser.Geom.Rectangle.Contains(zone, nx, ny)) {
         nearHint = zone.hint;
@@ -378,6 +554,7 @@ class HubScene extends Phaser.Scene {
 
     this.portalHint.setText(nearHint);
     this.joystick.update(this);
+    if (this.goldText) this.goldText.setText(`🪙 ${PLAYER_GOLD}`);
   }
 }
 
@@ -421,12 +598,13 @@ class BaseScene extends Phaser.Scene {
 
     this.buildMode = false; this.buildType = null; this.ghostRot = false; this.ghostTiles = [];
     this.popupVisible = false; this.activeBuilding = null; this.nearbyBuilding = null;
+    this.popupChildren = []; this.popupSlotGfx = []; this.popupSlotTxt = [];
 
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a100a).setOrigin(0);
     this.gridGfx = this.add.graphics().setDepth(1);
     this.pipeLineGfx = this.add.graphics().setDepth(7);
 
-    // 기지 상태 복원 로직 (마을 복귀 시 건물 유지)
+    // 기지 상태 복원
     if (!BASE_DATA.initialized) {
       this.grid = Array.from({ length: GRID_COLS }, () => Array(GRID_ROWS).fill(null));
       this.buildings = []; this.pipes = [];
@@ -435,51 +613,74 @@ class BaseScene extends Phaser.Scene {
     } else {
       this.grid = BASE_DATA.grid; this.buildings = BASE_DATA.buildings; this.pipes = BASE_DATA.pipes;
       this.buildings.forEach(b => {
-        const def = BUILDING_DEFS[b.type], bx = GRID_OFFSET_X + b.col*TILE, by = GRID_OFFSET_Y + b.row*TILE, w = b.w, h = b.h;
+        const def = BUILDING_DEFS[b.type];
+        const bx = GRID_OFFSET_X+b.col*TILE, by = GRID_OFFSET_Y+b.row*TILE;
         b.gfx = [
-          this.add.rectangle(bx,by,w*TILE,h*TILE,def.color).setOrigin(0).setDepth(10).setStrokeStyle(2,0x9b59b6),
-          this.add.text(bx+(w*TILE)/2,by+(h*TILE)/2-8,def.icon,{fontSize:'20px'}).setOrigin(0.5).setDepth(11),
-          this.add.text(bx+(w*TILE)/2,by+(h*TILE)/2+10,def.label,{fontSize:'10px',fill:'#ffffff',fontFamily:'Arial'}).setOrigin(0.5).setDepth(11)
+          this.add.rectangle(bx,by,b.w*TILE,b.h*TILE,def.color).setOrigin(0).setDepth(10).setStrokeStyle(2,0x9b59b6),
+          this.add.text(bx+b.w*TILE/2,by+b.h*TILE/2-8,def.icon,{fontSize:'20px'}).setOrigin(0.5).setDepth(11),
+          this.add.text(bx+b.w*TILE/2,by+b.h*TILE/2+10,def.label,{fontSize:'10px',fill:'#ffffff',fontFamily:'Arial'}).setOrigin(0.5).setDepth(11)
         ];
       });
       this.pipes.forEach(p => {
         p.gfx = this.add.graphics().setDepth(9);
-        p.gfx.fillStyle(0x1a3a2a,1).fillRect(GRID_OFFSET_X+p.col*TILE+4, GRID_OFFSET_Y+p.row*TILE+4, TILE-8, TILE-8);
+        p.gfx.fillStyle(0x1a3a2a,1).fillRect(GRID_OFFSET_X+p.col*TILE+4,GRID_OFFSET_Y+p.row*TILE+4,TILE-8,TILE-8);
       });
     }
 
-    this._redrawGrid(); this._redrawPipeLines();
+    this._redrawGrid(); this._redrawPipeLines(); this._restorePauseOverlays();
 
-    this.player = this.add.rectangle(this.px, this.py, 24, 24, 0xf0e6ff).setDepth(20);
-    this.playerDir = this.add.triangle(this.px, this.py-16, 0,8, 8,-8, -8,-8, 0xc39bd3).setDepth(21);
+    this.player    = this.add.rectangle(this.px,this.py,24,24,0xf0e6ff).setDepth(20);
+    this.playerDir = this.add.triangle(this.px,this.py-16,0,8,8,-8,-8,-8,0xc39bd3).setDepth(21);
 
-    this._buildHUD(); this._buildBuildPanel(); this._buildPopup();
+    this._buildHUD();
+    this._buildBuildPanel();
+    this._buildPopupContainer();
 
-    this.interactPrompt = this.add.text(0,0,'[E]',{ fontSize:'11px',fill:'#ffffff',fontFamily:'Arial',backgroundColor:'#00000099',padding:{x:5,y:2} }).setOrigin(0.5,1).setDepth(40).setVisible(false);
-    this.inventoryUI = new InventoryUI(this, playerInventory, { title: '🎒 인벤토리', depth: 95 });
+    this.interactPrompt = this.add.text(0,0,'[E]',{
+      fontSize:'11px',fill:'#ffffff',fontFamily:'Arial',backgroundColor:'#00000099',padding:{x:5,y:2}
+    }).setOrigin(0.5,1).setDepth(40).setVisible(false);
 
+    // 플레이어 인벤토리 UI (팝업 열릴 때만 우측에 표시)
+    this.inventoryUI = new InventoryUI(this, playerInventory, { title:'🎒 인벤토리', depth:95 });
+    this.goldBg  = this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(12).setStrokeStyle(1,0x888800);
+    this.goldText= this.add.text(GAME_WIDTH-8,15,`🪙 ${PLAYER_GOLD}`,{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(13);
+
+    // 키 설정
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.wasd    = this.input.keyboard.addKeys({ W: 87, A: 65, S: 83, D: 68 });
-    this.keyE = this.input.keyboard.addKey(69);
-    this.keyR = this.input.keyboard.addKey(82); this.keyI = this.input.keyboard.addKey(73);
-    this.keySp = this.input.keyboard.addKey(32); this.keyEsc = this.input.keyboard.addKey(27);
+    this.wasd    = this.input.keyboard.addKeys({ W:87, A:65, S:83, D:68 });
+    this.keyB   = this.input.keyboard.addKey(66);
+    this.keyE   = this.input.keyboard.addKey(69);
+    this.keyR   = this.input.keyboard.addKey(82);
+    this.keyI   = this.input.keyboard.addKey(73);
+    this.keySp  = this.input.keyboard.addKey(32);
+    this.keyEsc = this.input.keyboard.addKey(27);
 
-    // 상호작용 및 건설 모두 E키로 통합
-    this.keyE.on('down', () => {
-      if (this.nearbyBuilding) {
-        if (this.nearbyBuilding.type === 'pipe') this._openPipePopup(this.nearbyBuilding.id);
-        else this._openPopup(this.nearbyBuilding.id);
-      } else if (!this.popupVisible && !this.inventoryUI.visible) {
+    // B: 건물 패널 토글 / 배치 중엔 취소
+    this.keyB.on('down', () => {
+      if (this.buildMode) { this._cancelBuild(); return; }
+      if (!this.popupVisible && !this.inventoryUI.visible)
         this.buildPanel.visible ? this.buildPanel.setVisible(false) : this.buildPanel.setVisible(true);
+    });
+    // E: 배치 중엔 설치 / 아니면 상호작용
+    this.keyE.on('down', () => {
+      if (this.buildMode) { this._confirmPlace(); return; }
+      if (this.nearbyBuilding) {
+        this.nearbyBuilding.type === 'pipe'
+          ? this._openPipePopup(this.nearbyBuilding.id)
+          : this._openPopup(this.nearbyBuilding.id);
       }
     });
-
-    this.keyR.on('down', () => { if (this.buildMode && !BUILDING_DEFS[this.buildType].isPipe) { this.ghostRot = !this.ghostRot; this._updateGhost(); } });
-    this.keyI.on('down', () => { this._closePopup(); this.inventoryUI.container.setY(this.inventoryUI.oy); this.inventoryUI.toggle(); });
+    this.keyR.on('down', () => {
+      if (this.buildMode && !BUILDING_DEFS[this.buildType].isPipe) { this.ghostRot = !this.ghostRot; this._updateGhost(); }
+    });
+    this.keyI.on('down', () => {
+      if (this.popupVisible) return; // 팝업 열려있으면 I키 무시
+      this.inventoryUI.container.setPosition(this.inventoryUI.ox, this.inventoryUI.oy);
+      this.inventoryUI.toggle();
+    });
     this.keySp.on('down', () => { if (this.buildMode) this._confirmPlace(); });
     this.keyEsc.on('down', () => {
-      if (this.buildingUI?.visible) { this.buildingUI.hide(); return; }
-      if (this.inventoryUI.visible) { this.inventoryUI.hide(); return; }
+      if (this.inventoryUI.visible && !this.popupVisible) { this.inventoryUI.hide(); return; }
       if (this.popupVisible)        { this._closePopup(); return; }
       if (this.buildMode)           { this._cancelBuild(); return; }
       if (this.buildPanel.visible)  { this.buildPanel.setVisible(false); return; }
@@ -487,146 +688,631 @@ class BaseScene extends Phaser.Scene {
     });
 
     this.joystick = new VirtualJoystick(this, 80, 490);
-    this.time.addEvent({ delay: 1000, loop: true, callback: this._tickProduction, callbackScope: this });
+    this.time.addEvent({ delay:1000, loop:true, callback:this._tickProduction, callbackScope:this });
   }
 
+  // ─────────────────────────────────────────
+  // 그리드
+  // ─────────────────────────────────────────
   _redrawGrid() {
     this.gridGfx.clear();
-    for (let c = 0; c < GRID_COLS; c++) {
-      for (let r = 0; r < GRID_ROWS; r++) {
-        const x = GRID_OFFSET_X+c*TILE, y = GRID_OFFSET_Y+r*TILE;
-        const occ = this.grid[c][r] !== null;
-        this.gridGfx.fillStyle(occ ? 0x1a2a1a : 0x0f1a0f, 1);
-        this.gridGfx.fillRect(x+1, y+1, TILE-2, TILE-2);
-        this.gridGfx.lineStyle(1, occ ? 0x2a4a2a : 0x1a2a1a, 0.8);
-        this.gridGfx.strokeRect(x, y, TILE, TILE);
+    for (let c=0; c<GRID_COLS; c++) {
+      for (let r=0; r<GRID_ROWS; r++) {
+        const x=GRID_OFFSET_X+c*TILE, y=GRID_OFFSET_Y+r*TILE;
+        const occ=this.grid[c][r]!==null;
+        this.gridGfx.fillStyle(occ?0x1a2a1a:0x0f1a0f,1).fillRect(x+1,y+1,TILE-2,TILE-2);
+        this.gridGfx.lineStyle(1,occ?0x2a4a2a:0x1a2a1a,0.8).strokeRect(x,y,TILE,TILE);
       }
     }
   }
 
+  // ─────────────────────────────────────────
+  // HUD
+  // ─────────────────────────────────────────
   _buildHUD() {
-    this.add.rectangle(0, 0, GAME_WIDTH, 50, 0x0a0015).setOrigin(0).setDepth(50);
-    this.add.rectangle(0, 49, GAME_WIDTH, 2, 0x2ecc71).setOrigin(0).setDepth(50);
-    this.add.text(12, 14, '🏗️ 기지', { fontSize:'15px', fill:'#2ecc71', fontFamily:'Arial', fontStyle:'bold' }).setDepth(50);
-    this.hudStatus = this.add.text(150, 14, '⚡ 에너지 확인중', { fontSize:'13px', fill:'#f1c40f', fontFamily:'Arial' }).setDepth(50);
-    this.add.text(420, 14, 'E:상호작용/건물  R:회전  I:인벤토리  Space:설치', { fontSize:'10px', fill:'#445544', fontFamily:'Arial' }).setDepth(50);
-    const backBtn = this.add.rectangle(910, 25, 80, 30, 0x2c3e50).setInteractive({ useHandCursor:true }).setDepth(50);
-    this.add.text(910, 25, '← 마을', { fontSize:'12px', fill:'#aaaaaa', fontFamily:'Arial' }).setOrigin(0.5).setDepth(51);
-    backBtn.on('pointerdown', () => this.scene.start('HubScene'));
+    this.add.rectangle(0,0,GAME_WIDTH,50,0x0a0015).setOrigin(0).setDepth(50);
+    this.add.rectangle(0,49,GAME_WIDTH,2,0x2ecc71).setOrigin(0).setDepth(50);
+    this.add.text(12,14,'🏗️ 기지',{fontSize:'15px',fill:'#2ecc71',fontFamily:'Arial',fontStyle:'bold'}).setDepth(50);
+    this.hudStatus = this.add.text(150,14,'⚡ 에너지 확인중',{fontSize:'13px',fill:'#f1c40f',fontFamily:'Arial'}).setDepth(50);
+    this.add.text(420,14,'B:건물패널  E:상호작용/설치  R:회전  I:인벤토리  ESC:취소',{fontSize:'9px',fill:'#445544',fontFamily:'Arial'}).setDepth(50);
+    const backBtn=this.add.rectangle(910,25,80,30,0x2c3e50).setInteractive({useHandCursor:true}).setDepth(50);
+    this.add.text(910,25,'← 마을',{fontSize:'12px',fill:'#aaaaaa',fontFamily:'Arial'}).setOrigin(0.5).setDepth(51);
+    backBtn.on('pointerdown',()=>this.scene.start('HubScene'));
     this._updateHUD();
   }
 
   _updateHUD() {
-    const estores = this.buildings.filter(b => BUILDING_DEFS[b.type].isEnergyStorage);
-    let used = 0, total = 0;
-    estores.forEach(b => { total += b.storage.slots.length; used += b.storage.slots.filter(sl => sl.itemId !== null).length; });
-    const hasEnergy = used > 0;
-    this.hudStatus.setText(hasEnergy ? `⚡ ${used}/${total} 슬롯` : `⚡ 에너지 없음 ⚠️`).setStyle({ fill: hasEnergy ? '#f1c40f' : '#e74c3c' });
+    const estores=this.buildings.filter(b=>BUILDING_DEFS[b.type].isEnergyStorage);
+    let used=0, total=0;
+    estores.forEach(b=>{ total+=b.storage.slots.length; used+=b.storage.slots.filter(sl=>sl.itemId!==null).length; });
+    this.hudStatus.setText(used>0?`⚡ ${used}/${total} 슬롯`:`⚡ 에너지 없음 ⚠️`).setStyle({fill:used>0?'#f1c40f':'#e74c3c'});
   }
 
+  // ─────────────────────────────────────────
+  // 건물 선택 패널
+  // ─────────────────────────────────────────
   _buildBuildPanel() {
-    const pw=290, ph=310, px=GAME_WIDTH/2-pw/2, py=GAME_HEIGHT/2-ph/2;
-    this.buildPanel = this.add.container(0,0).setDepth(80).setVisible(false);
+    const pw=290,ph=360,px=GAME_WIDTH/2-pw/2,py=GAME_HEIGHT/2-ph/2;
+    this.buildPanel=this.add.container(0,0).setDepth(80).setVisible(false);
     this.buildPanel.add(this.add.rectangle(px,py,pw,ph,0x0a0015,0.97).setOrigin(0).setStrokeStyle(2,0x6c3483));
     this.buildPanel.add(this.add.text(px+pw/2,py+16,'🏗️ 건물 선택 (R:회전)',{fontSize:'13px',fill:'#c39bd3',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5));
-    ['miner','refinery','estore','warehouse','pipe'].forEach((type,i)=>{
-      const def=BUILDING_DEFS[type], bx=px+16, by=py+44+i*50;
+    ['miner','refinery','estore','warehouse','bossgate','pipe'].forEach((type,i)=>{
+      const def=BUILDING_DEFS[type],bx=px+16,by=py+44+i*50;
       const btn=this.add.rectangle(bx+128,by+18,250,36,0x1a0a2a).setOrigin(0.5).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x4a2c6a);
       const lbl=this.add.text(bx+10,by+18,`${def.icon} ${def.label} [${def.isPipe?'1×1':def.baseW+'×'+def.baseH}]`,{fontSize:'12px',fill:'#ffffff',fontFamily:'Arial'}).setOrigin(0,0.5);
-      btn.on('pointerdown',()=>{ this.ghostRot=false; this.buildMode=true; this.buildType=type; this.buildPanel.setVisible(false); });
+      btn.on('pointerover',()=>btn.setFillStyle(0x2a1a4a));
+      btn.on('pointerout', ()=>btn.setFillStyle(0x1a0a2a));
+      btn.on('pointerdown',()=>{ this.ghostRot=false; this.buildMode=true; this.buildType=type; this.buildPanel.setVisible(false); this._showCancelBtn(); });
       this.buildPanel.add([btn,lbl]);
+    });
+    // 닫기
+    const cb=this.add.rectangle(px+pw-16,py+16,22,22,0x3a1a2a).setInteractive({useHandCursor:true});
+    this.buildPanel.add([cb,this.add.text(px+pw-16,py+16,'✕',{fontSize:'12px',fill:'#cc4444',fontFamily:'Arial'}).setOrigin(0.5)]);
+    cb.on('pointerdown',()=>this.buildPanel.setVisible(false));
+  }
+
+  // ─────────────────────────────────────────
+  // 팝업 컨테이너 초기화 (내용은 open시 동적 생성)
+  // ─────────────────────────────────────────
+  _buildPopupContainer() {
+    this.popupContainer = this.add.container(0,0).setDepth(90).setVisible(false);
+  }
+
+  // 팝업 내용을 건물 타입에 맞게 동적으로 빌드
+  _buildPopupContent(b) {
+    const def   = BUILDING_DEFS[b.type];
+    const SLOT  = 42, GAP = 3, PAD = 12;
+
+    // 슬롯 레이아웃 계산
+    const slotCount = b.storage ? b.storage.slots.length : 0;
+    const slotCols  = Math.min(slotCount, 5);
+    const slotRows  = slotCount > 0 ? Math.ceil(slotCount/slotCols) : 0;
+    const slotAreaW = slotCols > 0 ? slotCols*(SLOT+GAP)-GAP : 0;
+    const slotAreaH = slotRows > 0 ? slotRows*(SLOT+GAP)-GAP : 0;
+
+    // 팝업 크기
+    const pw = Math.max(260, slotAreaW + PAD*2);
+
+    // 버튼 수 계산 (수동가동 또는 업그레이드 + 항상 철거)
+    const hasPauseBtn = true;  // 모든 건물/파이프에 작동정지 버튼
+    const hasBossEnterBtn = def.isBossGate;
+    const hasCoreSlot     = !def.isPipe && !def.isWarehouse;
+    const hasRunBtn   = !def.isEnergyStorage && !def.isWarehouse && !!def.resource;
+    const hasUpgrBtn  = def.isEnergyStorage && !!ESTORE_UPGRADES[b.level];
+    const btnAreaH    = (hasPauseBtn?34:0) + (hasRunBtn?34:0) + (hasUpgrBtn?34:0) + (hasBossEnterBtn?34:0) + (hasCoreSlot?54:0) + 34 + 8;
+
+    const infoH   = 70;   // 헤더(36) + 정보 2줄
+    const slotH   = slotAreaH > 0 ? slotAreaH + 20 : 0;  // 슬롯 + 라벨
+    const ph = infoH + slotH + btnAreaH + PAD;
+
+    // 기존 자식 제거
+    this.popupChildren.forEach(o=>o.destroy());
+    this.popupChildren=[]; this.popupSlotGfx=[]; this.popupSlotTxt=[];
+
+    const reg = (obj) => { this.popupContainer.add(obj); this.popupChildren.push(obj); return obj; };
+
+    // ── 배경 ──
+    reg(this.add.rectangle(0,0,pw,ph,0x080010,0.97).setOrigin(0).setStrokeStyle(2,0x9b59b6));
+
+    // ── 헤더 ──
+    reg(this.add.text(PAD,12,`${def.icon} ${def.label}`,{fontSize:'14px',fill:'#c39bd3',fontFamily:'Arial',fontStyle:'bold'}));
+    const cBtn=reg(this.add.rectangle(pw-14,14,22,22,0x2a0a1a).setOrigin(0.5).setInteractive({useHandCursor:true}));
+    reg(this.add.text(pw-14,14,'✕',{fontSize:'12px',fill:'#cc4444',fontFamily:'Arial'}).setOrigin(0.5));
+    cBtn.on('pointerdown',()=>this._closePopup());
+    cBtn.on('pointerover', ()=>cBtn.setFillStyle(0x4a1a2a));
+    cBtn.on('pointerout',  ()=>cBtn.setFillStyle(0x2a0a1a));
+
+    // ── 구분선 ──
+    reg(this.add.rectangle(0,33,pw,1,0x4a2c6a).setOrigin(0));
+
+    // ── 정보 텍스트 2줄 ──
+    this.popupInfo1 = reg(this.add.text(PAD,38,'',{fontSize:'11px',fill:'#aaaaaa',fontFamily:'Arial'}));
+    this.popupInfo2 = reg(this.add.text(PAD,54,'',{fontSize:'11px',fill:'#2ecc71',fontFamily:'Arial'}));
+
+    // ── 슬롯 그리드 ──
+    if (slotCount > 0) {
+      reg(this.add.text(PAD, infoH+2, '슬롯', {fontSize:'9px',fill:'#555555',fontFamily:'Arial'}));
+      for (let i=0; i<slotCount; i++) {
+        const sc=i%slotCols, sr=Math.floor(i/slotCols);
+        const sx=PAD+sc*(SLOT+GAP), sy=infoH+16+sr*(SLOT+GAP);
+
+        const bg=this.add.rectangle(sx,sy,SLOT,SLOT,0x180820).setOrigin(0).setStrokeStyle(1,0x3a1a5a);
+        bg.setInteractive({dropZone:true, useHandCursor:true});
+        bg.inv=b.storage; bg.slotIdx=i;
+        bg.isEnergyStorage=def.isEnergyStorage||def.isBossGate;
+        // 팝업 슬롯 클릭 이동
+        const _slotIdx=i, _bStorage=b.storage, _def=def;
+        bg.on('pointerdown', ()=>{
+          const sel=this._invSel;
+          if (!sel) {
+            const slot=_bStorage.slots[_slotIdx]; if(!slot?.itemId) return;
+            this._invSel={ui:null,inv:_bStorage,idx:_slotIdx,gfx:bg};
+            bg.setStrokeStyle(2,0xf1c40f);
+          } else {
+            const prevGfx=sel.gfx; this._invSel=null;
+            prevGfx?.setStrokeStyle(1,0x3a1a5a);
+            const srcInv=sel.ui?sel.ui.inv:sel.inv;
+            const srcSlot=srcInv.slots[sel.idx]; if(!srcSlot?.itemId) return;
+            if((_def.isEnergyStorage||_def.isBossGate)&&!srcSlot.itemId.startsWith('energy_')){
+              this._showHint('❌ 에너지 아이템만 넣을 수 있습니다'); return;
+            }
+            const amt=GLOBAL_SPLIT_MODE==='HALF'?Math.ceil(srcSlot.count/2):GLOBAL_SPLIT_MODE==='ONE'?1:srcSlot.count;
+            srcInv.move(sel.idx,_bStorage,_slotIdx,amt);
+            if(sel.ui) sel.ui.refresh();
+            if(this.inventoryUI) this.inventoryUI.refresh();
+            if(this._refreshPopupSlots) this._refreshPopupSlots();
+          }
+        });
+        this.popupContainer.add(bg); this.popupChildren.push(bg); this.popupSlotGfx.push(bg);
+
+        const ico=this.add.text(sx+SLOT/2,sy+SLOT/2-3,'',{fontSize:'18px',fontFamily:'Arial'}).setOrigin(0.5);
+        ico.setInteractive({draggable:true});
+        ico.inv=b.storage; ico.slotIdx=i;
+        const cnt=this.add.text(sx+SLOT-2,sy+SLOT-2,'',{fontSize:'9px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,1);
+        this.popupContainer.add(ico); this.popupChildren.push(ico);
+        this.popupContainer.add(cnt); this.popupChildren.push(cnt);
+        this.popupSlotTxt.push({icon:ico,count:cnt});
+      }
+    }
+
+    // ── 버튼 영역 ──
+    let btnY = infoH + slotH + 6;
+
+    // 작동정지/재개 토글 버튼 (생산 건물 + 에너지저장고)
+    if (true) {  // 모든 건물/파이프 작동정지 버튼
+      const paused=!!b.paused;
+      const pc=paused?0x1a5a1a:0x5a3a00, pa=paused?0x2ecc71:0xf1c40f;
+      const pt=paused?'▶ 재개':'⏸ 작동 정지';
+      const pb=reg(this.add.rectangle(PAD,btnY,pw-PAD*2,28,pc).setOrigin(0).setInteractive({useHandCursor:true}).setStrokeStyle(1,pa));
+      reg(this.add.text(pw/2,btnY+14,pt,{fontSize:'12px',fill:'#'+pa.toString(16).padStart(6,'0'),fontFamily:'Arial'}).setOrigin(0.5));
+      pb.on('pointerdown',()=>this._togglePause(b));
+      pb.on('pointerover', ()=>pb.setFillStyle(paused?0x2a7a2a:0x7a5a00));
+      pb.on('pointerout',  ()=>pb.setFillStyle(pc));
+      btnY+=34;
+    }
+
+    // 수동 가동 버튼 (채굴기 등 생산 건물)
+    if (!def.isEnergyStorage && !def.isWarehouse && def.resource) {
+      const rb=reg(this.add.rectangle(PAD,btnY,pw-PAD*2,28,0x1a3a5a).setOrigin(0).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x3498db));
+      reg(this.add.text(pw/2,btnY+14,'▶ 수동 가동 (+5)',{fontSize:'12px',fill:'#3498db',fontFamily:'Arial'}).setOrigin(0.5));
+      rb.on('pointerdown',()=>this._manualRun());
+      rb.on('pointerover', ()=>rb.setFillStyle(0x2a5a7a));
+      rb.on('pointerout',  ()=>rb.setFillStyle(0x1a3a5a));
+      btnY+=34;
+    }
+
+    // 업그레이드 버튼 (에너지저장고)
+    if (def.isEnergyStorage) {
+      const next=ESTORE_UPGRADES[b.level];
+      if (next) {
+        const ub=reg(this.add.rectangle(PAD,btnY,pw-PAD*2,28,0x1a2a5a).setOrigin(0).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x3498db));
+        reg(this.add.text(pw/2,btnY+14,`⬆️ Lv.${next.level} 업그레이드 (광물 ${next.upgradeCost})`,{fontSize:'11px',fill:'#3498db',fontFamily:'Arial'}).setOrigin(0.5));
+        ub.on('pointerdown',()=>this._upgradeEstore());
+        ub.on('pointerover', ()=>ub.setFillStyle(0x2a4a8a));
+        ub.on('pointerout',  ()=>ub.setFillStyle(0x1a2a5a));
+        btnY += 34;
+      }
+    }
+
+    // 보스게이트 진입 버튼
+    if (def.isBossGate) {
+      const charged=b.storage.slots.reduce((s,sl)=>s+(sl.itemId?(ENERGY_ITEMS[sl.itemId]?.power||1)*sl.count:0),0);
+      const cost=BOSS_GATE_COST['1-BOSS']||30;
+      const ready=charged>=cost;
+      const gbg=ready?0x3a0505:0x1a1a1a, gbd=ready?0xe74c3c:0x555555;
+      const gb=reg(this.add.rectangle(PAD,btnY,pw-PAD*2,28,gbg).setOrigin(0).setStrokeStyle(1,gbd));
+      reg(this.add.text(pw/2,btnY+14,ready?'🌀 보스전 진입!':'🔒 에너지 부족',{fontSize:'13px',fill:ready?'#e74c3c':'#555555',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5));
+      if (ready) {
+        gb.setInteractive({useHandCursor:true});
+        gb.on('pointerdown',()=>this._enterBossFight(b));
+        gb.on('pointerover',()=>gb.setFillStyle(0x5a0808));
+        gb.on('pointerout', ()=>gb.setFillStyle(gbg));
+      }
+      btnY+=34;
+    }
+
+    // 코어 장착 슬롯
+    if (hasCoreSlot) {
+      reg(this.add.text(PAD,btnY+8,'🔩 코어:',{fontSize:'10px',fill:'#888888',fontFamily:'Arial'}).setOrigin(0,0.5));
+      const effEq=!!b.cores?.efficiency, redEq=!!b.cores?.reduce;
+      const hasEff=playerInventory.count('core_efficiency')>0, hasRed=playerInventory.count('core_reduce')>0;
+      const ec=this.add.rectangle(PAD+56,btnY,44,30,effEq?0x2a1800:0x181818).setOrigin(0).setStrokeStyle(2,effEq?0xf39c12:0x444444).setInteractive({useHandCursor:true});
+      const et=this.add.text(PAD+56+22,btnY+11,effEq?'🟡✓':'🟡',{fontSize:'14px'}).setOrigin(0.5);
+      const el=this.add.text(PAD+56+22,btnY+25,effEq?'효율ON':hasEff?'효율':'없음',{fontSize:'7px',fill:effEq?'#f39c12':hasEff?'#665533':'#333333',fontFamily:'Arial'}).setOrigin(0.5);
+      const rc=this.add.rectangle(PAD+106,btnY,44,30,redEq?0x001828:0x181818).setOrigin(0).setStrokeStyle(2,redEq?0x2980b9:0x444444).setInteractive({useHandCursor:true});
+      const rt=this.add.text(PAD+106+22,btnY+11,redEq?'🔵✓':'🔵',{fontSize:'14px'}).setOrigin(0.5);
+      const rl=this.add.text(PAD+106+22,btnY+25,redEq?'절약ON':hasRed?'절약':'없음',{fontSize:'7px',fill:redEq?'#2980b9':hasRed?'#335566':'#333333',fontFamily:'Arial'}).setOrigin(0.5);
+      reg(ec); reg(et); reg(el); reg(rc); reg(rt); reg(rl);
+      ec.on('pointerdown',()=>this._toggleCore(b,'efficiency'));
+      rc.on('pointerdown',()=>this._toggleCore(b,'reduce'));
+      btnY+=54;
+    }
+
+    // 철거 버튼 (항상)
+    const db=reg(this.add.rectangle(PAD,btnY,pw-PAD*2,28,0x5a1a1a).setOrigin(0).setInteractive({useHandCursor:true}).setStrokeStyle(1,0xe74c3c));
+    reg(this.add.text(pw/2,btnY+14,'🗑 철거',{fontSize:'12px',fill:'#e74c3c',fontFamily:'Arial'}).setOrigin(0.5));
+    db.on('pointerdown',()=>this._demolishBuilding());
+    db.on('pointerover', ()=>db.setFillStyle(0x8a2a2a));
+    db.on('pointerout',  ()=>db.setFillStyle(0x5a1a1a));
+
+    return { pw, ph };
+  }
+
+  // ─────────────────────────────────────────
+  // 팝업 열기/닫기
+  // ─────────────────────────────────────────
+  _openPopup(id) {
+    if (this.buildMode) return;
+    const b=this.buildings.find(b=>b.id===id); if (!b) return;
+    this.activeBuilding=b;
+    const def=BUILDING_DEFS[b.type];
+
+    const {pw,ph}=this._buildPopupContent(b);
+
+    // 정보 텍스트
+    const stateTag=b.paused?'  ⏸ 정지 중':'';
+    if (def.isBossGate) {
+      // 보스게이트 — 충전 현황
+      const charged=b.storage.slots.reduce((sum,sl)=>{
+        if (!sl.itemId) return sum;
+        const power=ENERGY_ITEMS[sl.itemId]?.power||1;
+        return sum+sl.count*power;
+      },0);
+      const cost=BOSS_GATE_COST['1-BOSS']||30;
+      this.popupInfo1.setText(`충전량: ${charged} / ${cost}  (에너지 단위)`);
+      this.popupInfo2.setText(charged>=cost?'🌀 보스전 진입 가능!':'⚡ 에너지를 슬롯에 드래그해서 충전하세요.');
+    } else if (def.isEnergyStorage) {
+      const lv=ESTORE_UPGRADES[b.level-1];
+      this.popupInfo1.setText(`레벨: ${lv.label}  |  슬롯 용량: ${lv.slotSize}개${stateTag}`);
+      this.popupInfo2.setText('인벤토리에서 에너지 아이템을 슬롯으로 드래그하세요.');
+    } else if (def.isWarehouse) {
+      const used=b.storage.slots.filter(s=>s.itemId).length;
+      this.popupInfo1.setText(`슬롯 사용: ${used}/${b.storage.slots.length}`);
+      this.popupInfo2.setText('파이프 연결된 건물의 자원이 자동 이송됩니다.');
+    } else {
+      const wh=this._findConnectedWarehouse(b);
+      const estore=this._findConnectedEstore(b);
+      const stored=b.storage?.slots[0]?.count||0;
+      const connState=b.paused?'⏸ 정지':estore?'🟢 가동 중':'🔴 에너지저장고 미연결';
+      this.popupInfo1.setText(`보관: ${stored} 광물  |  ${connState}`);
+      this.popupInfo2.setText(wh?(wh.paused?'📦 창고 정지 → 내부 보관':'📦 창고 연결됨 (+1 에너지/초)'):'📦 창고 미연결 → 내부 보관');
+    }
+
+    // 팝업 위치: 좌측, 세로 중앙
+    const px=16;
+    const py=Math.max(55, Math.min(GAME_HEIGHT-ph-10, (GAME_HEIGHT-ph)/2));
+    this.popupContainer.setPosition(px,py).setVisible(true);
+    this.popupVisible=true;
+
+    // 슬롯 렌더
+    this._refreshPopupSlots();
+
+    // 인벤토리를 팝업 오른쪽에 배치
+    this.inventoryUI.container.setPosition(px+pw+10, py);
+    this.inventoryUI.show();
+  }
+
+  _openPipePopup(id) {
+    if (this.buildMode) return;
+    const p=this.pipes.find(p=>p.id===id); if (!p) return;
+    this.activeBuilding={...p,type:'pipe',w:1,h:1};
+    const {pw,ph}=this._buildPipePopupContent(p);
+    this.popupContainer.setPosition(16,(GAME_HEIGHT-ph)/2).setVisible(true);
+    this.popupVisible=true;
+  }
+
+  // 파이프 전용 팝업 (작동정지 포함)
+  _buildPipePopupContent(p) {
+    this.popupChildren.forEach(o=>o.destroy());
+    this.popupChildren=[]; this.popupSlotGfx=[]; this.popupSlotTxt=[];
+
+    const paused=!!p.paused;
+    const pw=240, ph=140;
+    const reg=(obj)=>{ this.popupContainer.add(obj); this.popupChildren.push(obj); return obj; };
+
+    reg(this.add.rectangle(0,0,pw,ph,0x080010,0.97).setOrigin(0).setStrokeStyle(2,0x4adc9a));
+    reg(this.add.text(12,12,'🔗 파이프',{fontSize:'14px',fill:'#4adc9a',fontFamily:'Arial',fontStyle:'bold'}));
+    const cb=reg(this.add.rectangle(pw-14,14,22,22,0x2a0a1a).setOrigin(0.5).setInteractive({useHandCursor:true}));
+    reg(this.add.text(pw-14,14,'✕',{fontSize:'12px',fill:'#cc4444',fontFamily:'Arial'}).setOrigin(0.5));
+    cb.on('pointerdown',()=>this._closePopup());
+    reg(this.add.rectangle(0,33,pw,1,0x2adc6a).setOrigin(0));
+    reg(this.add.text(12,40,'에너지를 소모하여 자원을 이송합니다.',{fontSize:'11px',fill:'#aaaaaa',fontFamily:'Arial'}));
+    reg(this.add.text(12,57,`파이프 ${this.pipes.length}개  |  소모 ${this._calcPipeEnergyCost()}/초  |  ${paused?'⏸ 정지':'🟢 활성'}`,{fontSize:'11px',fill:'#f1c40f',fontFamily:'Arial'}));
+
+    // 작동정지/재개 버튼
+    const pc=paused?0x1a5a1a:0x5a3a00, pa=paused?0x2ecc71:0xf1c40f;
+    const pb2=reg(this.add.rectangle(12,74,pw-24,26,pc).setOrigin(0).setInteractive({useHandCursor:true}).setStrokeStyle(1,pa));
+    reg(this.add.text(pw/2,87,paused?'▶ 재개':'⏸ 작동 정지',{fontSize:'12px',fill:'#'+pa.toString(16).padStart(6,'0'),fontFamily:'Arial'}).setOrigin(0.5));
+    pb2.on('pointerdown',()=>this._togglePausePipe(p));
+    pb2.on('pointerover', ()=>pb2.setFillStyle(paused?0x2a7a2a:0x7a5a00));
+    pb2.on('pointerout',  ()=>pb2.setFillStyle(pc));
+
+    // 철거 버튼
+    const db2=reg(this.add.rectangle(12,108,pw-24,26,0x5a1a1a).setOrigin(0).setInteractive({useHandCursor:true}).setStrokeStyle(1,0xe74c3c));
+    reg(this.add.text(pw/2,121,'🗑 철거',{fontSize:'11px',fill:'#e74c3c',fontFamily:'Arial'}).setOrigin(0.5));
+    db2.on('pointerdown',()=>this._demolishBuilding());
+    db2.on('pointerover', ()=>db2.setFillStyle(0x8a2a2a));
+    db2.on('pointerout',  ()=>db2.setFillStyle(0x5a1a1a));
+
+    return {pw,ph};
+  }
+
+  _toggleCore(b, coreType) {
+    if (!b.cores) b.cores={};
+    const itemId=coreType==='efficiency'?'core_efficiency':'core_reduce';
+    if (b.cores[coreType]) {
+      b.cores[coreType]=false; playerInventory.add(itemId,1);
+      this._showHint((coreType==='efficiency'?'🟡':'🔵')+' 코어 해제 → 인벤토리 반환');
+    } else {
+      if (!playerInventory.count(itemId)) { this._showHint('❌ 코어 없음'); return; }
+      playerInventory.consume(itemId,1); b.cores[coreType]=true;
+      this._showHint((coreType==='efficiency'?'🟡 효율':'🔵 절약')+' 코어 장착!');
+    }
+    if (this.inventoryUI?.visible) this.inventoryUI.refresh();
+    this._openPopup(b.id);
+  }
+
+  _enterBossFight(b) {
+    // 게이트 에너지 소모
+    b.storage.slots.forEach(sl=>{ sl.itemId=null; sl.count=0; });
+    this._closePopup();
+    // 보스 스테이지로 진입
+    if (!window.FIELD_DATA) window.FIELD_DATA={cleared:new Set()};
+    FIELD_DATA.currentStage='1-BOSS';
+    PLAYER_STATS.hp=PLAYER_STATS.maxHp;
+    this.cameras.main.fadeOut(400,60,0,0);
+    this.cameras.main.once('camerafadeoutcomplete',()=>{
+      this.scene.start('FieldScene');
     });
   }
 
-  _buildPopup() {
-    const pw=280, ph=290;
-    this.popupContainer = this.add.container(0,0).setDepth(90).setVisible(false);
-    this.popupContainer.add(this.add.rectangle(0,0,pw,ph,0x0a0015,0.97).setOrigin(0).setStrokeStyle(2,0x9b59b6));
-    this.popupTitle = this.add.text(pw/2,18,'',{fontSize:'14px',fill:'#c39bd3',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5);
-    this.popupInfo1 = this.add.text(14,42,'',{fontSize:'12px',fill:'#888888',fontFamily:'Arial'});
-    this.popupInfo2 = this.add.text(14,60,'',{fontSize:'12px',fill:'#aaaaaa',fontFamily:'Arial'});
-    this.popupInfo3 = this.add.text(14,78,'',{fontSize:'11px',fill:'#2ecc71',fontFamily:'Arial'});
-
-    this.popupRunBtn = this.add.rectangle(pw/2,114,220,30,0x2a6a2a).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x2ecc71);
-    this.popupRunLbl = this.add.text(pw/2,114,'▶ 수동 가동 (+5)',{fontSize:'12px',fill:'#2ecc71',fontFamily:'Arial'}).setOrigin(0.5);
-    this.popupRunBtn.on('pointerdown',()=>this._manualRun());
-
-    this.popupUpgrBtn = this.add.rectangle(pw/2,188,220,30,0x2a3a6a).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x3498db);
-    this.popupUpgrLbl = this.add.text(pw/2,188,'⬆️ 업그레이드',{fontSize:'12px',fill:'#3498db',fontFamily:'Arial'}).setOrigin(0.5);
-    this.popupUpgrBtn.on('pointerdown',()=>this._upgradeEstore());
-
-    const delBtn = this.add.rectangle(pw/2,236,220,28,0x6a1a1a).setInteractive({useHandCursor:true}).setStrokeStyle(1,0xe74c3c);
-    const delLbl = this.add.text(pw/2,236,'🗑 철거',{fontSize:'12px',fill:'#e74c3c',fontFamily:'Arial'}).setOrigin(0.5);
-    delBtn.on('pointerdown',()=>this._demolishBuilding());
-
-    const closeBtn = this.add.rectangle(pw-16,16,22,22,0x3a1a2a).setInteractive({useHandCursor:true});
-    closeBtn.on('pointerdown',()=>this._closePopup());
-
-    this.popupContainer.add([this.popupTitle, this.popupInfo1, this.popupInfo2, this.popupInfo3, this.popupRunBtn, this.popupRunLbl, this.popupUpgrBtn, this.popupUpgrLbl, delBtn, delLbl, closeBtn]);
+  _closePopup() {
+    this.popupContainer.setVisible(false);
+    this.popupVisible=false;
+    this.activeBuilding=null;
+    this.inventoryUI.hide();
+    this.inventoryUI.container.setPosition(this.inventoryUI.ox, this.inventoryUI.oy);
   }
 
+  _refreshPopupSlots() {
+    if (!this.activeBuilding?.storage) return;
+    const slots=this.activeBuilding.storage.slots;
+    for (let i=0; i<this.popupSlotTxt.length; i++) {
+      const sl=slots[i], {icon,count}=this.popupSlotTxt[i];
+      if (sl?.itemId) {
+        const d=ITEM_DEFS[sl.itemId];
+        icon.setText(d?d.icon:'?');
+        count.setText(String(sl.count));
+        this.popupSlotGfx[i].setFillStyle(d?d.bg:0x180820);
+      } else {
+        icon.setText(''); count.setText('');
+        this.popupSlotGfx[i].setFillStyle(0x180820);
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // 취소 버튼 (배치 모드 중)
+  // ─────────────────────────────────────────
+  _showCancelBtn() {
+    if (!this.cancelBtn) {
+      this.cancelBtn=this.add.rectangle(GAME_WIDTH/2+100,GAME_HEIGHT-26,130,26,0x5a1a1a).setInteractive({useHandCursor:true}).setDepth(61).setStrokeStyle(1,0xe74c3c);
+      this.cancelLbl=this.add.text(GAME_WIDTH/2+100,GAME_HEIGHT-26,'✕ 취소 (B / ESC)',{fontSize:'11px',fill:'#e74c3c',fontFamily:'Arial'}).setOrigin(0.5).setDepth(62);
+      this.cancelBtn.on('pointerdown',()=>this._cancelBuild());
+      this.cancelBtn.on('pointerover', ()=>this.cancelBtn.setFillStyle(0x8a2a2a));
+      this.cancelBtn.on('pointerout',  ()=>this.cancelBtn.setFillStyle(0x5a1a1a));
+    }
+    const def=BUILDING_DEFS[this.buildType];
+    if (!this.hintText) this.hintText=this.add.text(GAME_WIDTH/2-40,GAME_HEIGHT-26,'',{
+      fontSize:'11px',fill:'#ffffff',fontFamily:'Arial',backgroundColor:'#00000099',padding:{x:6,y:3}
+    }).setOrigin(0.5).setDepth(60);
+    this.hintText.setText(`${def.icon} ${def.label} 배치 중 — E/Space:설치  R:회전`).setVisible(true);
+    this.cancelBtn.setVisible(true); this.cancelLbl.setVisible(true);
+  }
+
+  _showHint(msg) {
+    if (!this.hintText) this.hintText=this.add.text(GAME_WIDTH/2,GAME_HEIGHT-26,'',{
+      fontSize:'11px',fill:'#ffffff',fontFamily:'Arial',backgroundColor:'#00000099',padding:{x:6,y:3}
+    }).setOrigin(0.5).setDepth(60);
+    this.hintText.setText(msg).setVisible(true);
+    this.time.delayedCall(2200,()=>{ if (this.hintText&&!this.buildMode) this.hintText.setVisible(false); });
+  }
+
+  // ─────────────────────────────────────────
+  // 건물 배치
+  // ─────────────────────────────────────────
   _updateGhost() {
     if (!this.buildMode) return;
-    const def = BUILDING_DEFS[this.buildType];
-    const w = def.isPipe ? 1 : (this.ghostRot ? def.baseH : def.baseW);
-    const h = def.isPipe ? 1 : (this.ghostRot ? def.baseW : def.baseH);
-    const mx = this.input.activePointer.x, my = this.input.activePointer.y;
-    let gc = Math.floor((mx-GRID_OFFSET_X)/TILE), gr = Math.floor((my-GRID_OFFSET_Y)/TILE);
-    this.ghostCol = Phaser.Math.Clamp(gc, 0, GRID_COLS-w); this.ghostRow = Phaser.Math.Clamp(gr, 0, GRID_ROWS-h);
+    const def=BUILDING_DEFS[this.buildType];
+    const w=def.isPipe?1:(this.ghostRot?def.baseH:def.baseW);
+    const h=def.isPipe?1:(this.ghostRot?def.baseW:def.baseH);
+    const mx=this.input.activePointer.x, my=this.input.activePointer.y;
+    let gc=Math.floor((mx-GRID_OFFSET_X)/TILE), gr=Math.floor((my-GRID_OFFSET_Y)/TILE);
+    this.ghostCol=Phaser.Math.Clamp(gc,0,GRID_COLS-w);
+    this.ghostRow=Phaser.Math.Clamp(gr,0,GRID_ROWS-h);
 
-    while(this.ghostTiles.length < w*h) this.ghostTiles.push(this.add.rectangle(0,0,TILE-2,TILE-2,0x2ecc71,0.4).setDepth(30));
-    while(this.ghostTiles.length > w*h) this.ghostTiles.pop().destroy();
+    while (this.ghostTiles.length<w*h) this.ghostTiles.push(this.add.rectangle(0,0,TILE-2,TILE-2,0x2ecc71,0.4).setDepth(30));
+    while (this.ghostTiles.length>w*h) this.ghostTiles.pop().destroy();
 
-    let valid = true;
-    for(let dc=0; dc<w; dc++) for(let dr=0; dr<h; dr++) {
-      if(this.grid[this.ghostCol+dc] && this.grid[this.ghostCol+dc][this.ghostRow+dr] !== null) valid = false;
-    }
+    let valid=true;
+    for (let dc=0;dc<w;dc++) for (let dr=0;dr<h;dr++)
+      if (this.grid[this.ghostCol+dc]?.[this.ghostRow+dr]!==null) valid=false;
+    // 캐릭터 거리 체크
+    const gCX=GRID_OFFSET_X+(this.ghostCol+w/2)*TILE, gCY=GRID_OFFSET_Y+(this.ghostRow+h/2)*TILE;
+    if (Phaser.Math.Distance.Between(this.px,this.py,gCX,gCY)>TILE*(def.isPipe?4:5)) valid=false;
 
     let i=0;
-    for(let dc=0; dc<w; dc++) for(let dr=0; dr<h; dr++) {
-      this.ghostTiles[i].setPosition(GRID_OFFSET_X+(this.ghostCol+dc)*TILE+TILE/2, GRID_OFFSET_Y+(this.ghostRow+dr)*TILE+TILE/2).setVisible(true).setFillStyle(valid?0x2ecc71:0xe74c3c,0.4);
+    for (let dc=0;dc<w;dc++) for (let dr=0;dr<h;dr++) {
+      this.ghostTiles[i].setPosition(GRID_OFFSET_X+(this.ghostCol+dc)*TILE+TILE/2,GRID_OFFSET_Y+(this.ghostRow+dr)*TILE+TILE/2)
+        .setVisible(true).setFillStyle(valid?0x2ecc71:0xe74c3c,0.4);
       i++;
     }
   }
 
-  _cancelBuild() { this.buildMode = false; this.ghostTiles.forEach(t=>t.destroy()); this.ghostTiles = []; }
+  _cancelBuild() {
+    this.buildMode=false; this.buildType=null;
+    this.ghostTiles.forEach(t=>t.destroy()); this.ghostTiles=[];
+    if (this.cancelBtn) this.cancelBtn.setVisible(false);
+    if (this.cancelLbl) this.cancelLbl.setVisible(false);
+    if (this.hintText)  this.hintText.setVisible(false);
+  }
 
   _confirmPlace() {
-    const type = this.buildType, def = BUILDING_DEFS[type];
-    const w = def.isPipe ? 1 : (this.ghostRot ? def.baseH : def.baseW);
-    const h = def.isPipe ? 1 : (this.ghostRot ? def.baseW : def.baseH);
-    const col = this.ghostCol, row = this.ghostRow;
+    const type=this.buildType, def=BUILDING_DEFS[type];
+    const w=def.isPipe?1:(this.ghostRot?def.baseH:def.baseW);
+    const h=def.isPipe?1:(this.ghostRot?def.baseW:def.baseH);
+    const col=this.ghostCol, row=this.ghostRow;
 
-    for(let dc=0; dc<w; dc++) for(let dr=0; dr<h; dr++) {
-      if(this.grid[col+dc][row+dr] !== null) { this._showHint('❌ 배치 불가!'); return; }
-    }
+    for (let dc=0;dc<w;dc++) for (let dr=0;dr<h;dr++)
+      if (this.grid[col+dc]?.[row+dr]!==null) { this._showHint('❌ 배치 불가!'); return; }
+
     const gCX=GRID_OFFSET_X+(col+w/2)*TILE, gCY=GRID_OFFSET_Y+(row+h/2)*TILE;
-    if (Phaser.Math.Distance.Between(this.px,this.py,gCX,gCY) > TILE*(def.isPipe?4:5)) { this._showHint('❌ 캐릭터 근처에서만!'); return; }
+    if (Phaser.Math.Distance.Between(this.px,this.py,gCX,gCY)>TILE*(def.isPipe?4:5)) { this._showHint('❌ 캐릭터 근처에서만!'); return; }
 
-    const id = Date.now()+Math.random();
-    for(let dc=0; dc<w; dc++) for(let dr=0; dr<h; dr++) this.grid[col+dc][row+dr] = {type, id};
+    const id=Date.now()+Math.random();
+    for (let dc=0;dc<w;dc++) for (let dr=0;dr<h;dr++) this.grid[col+dc][row+dr]={type,id};
 
     if (def.isPipe) {
-      const pg = this.add.graphics().setDepth(9);
+      const pg=this.add.graphics().setDepth(9);
       pg.fillStyle(0x1a3a2a,1).fillRect(GRID_OFFSET_X+col*TILE+4,GRID_OFFSET_Y+row*TILE+4,TILE-8,TILE-8);
       this.pipes.push({id,col,row,gfx:pg});
       this._redrawPipeLines();
+      // 파이프는 연속 배치 (건물 패널 안 닫음)
+      this._showHint(`🔗 파이프 ${this.pipes.length}개 설치 | E:계속 배치`);
     } else {
       const bx=GRID_OFFSET_X+col*TILE, by=GRID_OFFSET_Y+row*TILE;
       const bg2=this.add.rectangle(bx,by,w*TILE,h*TILE,def.color).setOrigin(0).setDepth(10).setStrokeStyle(2,0x9b59b6);
-      const icon=this.add.text(bx+(w*TILE)/2,by+(h*TILE)/2-8,def.icon,{fontSize:'20px'}).setOrigin(0.5).setDepth(11);
-      const lbl=this.add.text(bx+(w*TILE)/2,by+(h*TILE)/2+10,def.label,{fontSize:'10px',fill:'#ffffff',fontFamily:'Arial'}).setOrigin(0.5).setDepth(11);
+      const ico=this.add.text(bx+w*TILE/2,by+h*TILE/2-8,def.icon,{fontSize:'20px'}).setOrigin(0.5).setDepth(11);
+      const lbl=this.add.text(bx+w*TILE/2,by+h*TILE/2+10,def.label,{fontSize:'10px',fill:'#ffffff',fontFamily:'Arial'}).setOrigin(0.5).setDepth(11);
 
-      let storage = null;
-      if (def.isWarehouse) { storage = new ItemStorage(def.label, 30); }
-      else if (def.isEnergyStorage) { storage = new ItemStorage('에너지저장고', ESTORE_UPGRADES[0].slots, ESTORE_UPGRADES[0].slotSize); }
-      else if (def.resource === 'mineral') { storage = new ItemStorage('채굴기 내부', 1, 100); }
+      let storage=null;
+      if (def.isWarehouse)          storage=new ItemStorage(def.label,30);
+      else if (def.isEnergyStorage) storage=new ItemStorage('에너지저장고',ESTORE_UPGRADES[0].slots,ESTORE_UPGRADES[0].slotSize);
+      else if (def.isBossGate)      storage=new ItemStorage('보스 게이트',5,999);
+      else if (def.resource)        storage=new ItemStorage('채굴기 내부',1,100);
 
-      this.buildings.push({id, type, col, row, w, h, gfx:[bg2,icon,lbl], level:1, storage});
+      this.buildings.push({id,type,col,row,w,h,gfx:[bg2,ico,lbl],level:1,storage});
       this._cancelBuild(); this._redrawGrid();
+      this._showHint(`✅ ${def.label} 설치 완료!`);
+    }
+    this._updateHUD();
+  }
+
+  // ─────────────────────────────────────────
+  // 작동 정지 / 재개 토글
+  // ─────────────────────────────────────────
+  _togglePause(b) {
+    b.paused = !b.paused;
+    if (b.pauseOverlay)  { b.pauseOverlay.destroy();  b.pauseOverlay=null; }
+    if (b.pauseOverlay2) { b.pauseOverlay2.destroy(); b.pauseOverlay2=null; }
+    if (b.paused) {
+      const bx=GRID_OFFSET_X+b.col*TILE, by=GRID_OFFSET_Y+b.row*TILE;
+      b.pauseOverlay  = this.add.rectangle(bx,by,b.w*TILE,b.h*TILE,0x000000,0.5).setOrigin(0).setDepth(12);
+      b.pauseOverlay2 = this.add.text(bx+b.w*TILE/2,by+b.h*TILE/2,'⏸',{fontSize:'20px'}).setOrigin(0.5).setDepth(13);
+      this._showHint(`⏸ ${BUILDING_DEFS[b.type].label} 작동 정지`);
+    } else {
+      this._showHint(`▶ ${BUILDING_DEFS[b.type].label} 작동 재개`);
+    }
+    this._openPopup(b.id);
+  }
+
+  _togglePausePipe(p) {
+    // pipes 배열에서 실제 객체 찾아서 paused 토글
+    const realPipe = this.pipes.find(pp=>pp.id===p.id);
+    if (!realPipe) return;
+    realPipe.paused = !realPipe.paused;
+    // 파이프 그래픽 색상으로 정지 표시
+    realPipe.gfx.clear();
+    const col = realPipe.paused ? 0x3a1a1a : 0x1a3a2a;
+    const brd = realPipe.paused ? 0xe74c3c : 0x4adc9a;
+    realPipe.gfx.fillStyle(col,1).fillRect(GRID_OFFSET_X+realPipe.col*TILE+4,GRID_OFFSET_Y+realPipe.row*TILE+4,TILE-8,TILE-8);
+    realPipe.gfx.lineStyle(1,brd,1).strokeRect(GRID_OFFSET_X+realPipe.col*TILE+4,GRID_OFFSET_Y+realPipe.row*TILE+4,TILE-8,TILE-8);
+    this.activeBuilding={...realPipe,type:'pipe',w:1,h:1};
+    this._showHint(realPipe.paused?'⏸ 파이프 정지':'▶ 파이프 재개');
+    // 팝업 재빌드
+    const {pw,ph}=this._buildPipePopupContent(realPipe);
+    this.popupContainer.setPosition(16,(GAME_HEIGHT-ph)/2);
+  }
+
+  _restorePauseOverlays() {
+    this.buildings.forEach(b=>{
+      if (!b.paused) return;
+      const bx=GRID_OFFSET_X+b.col*TILE, by=GRID_OFFSET_Y+b.row*TILE;
+      b.pauseOverlay  = this.add.rectangle(bx,by,b.w*TILE,b.h*TILE,0x000000,0.5).setOrigin(0).setDepth(12);
+      b.pauseOverlay2 = this.add.text(bx+b.w*TILE/2,by+b.h*TILE/2,'⏸',{fontSize:'20px'}).setOrigin(0.5).setDepth(13);
+    });
+    // 정지된 파이프 색상 복원
+    this.pipes.forEach(p=>{
+      if (!p.paused) return;
+      p.gfx.clear();
+      p.gfx.fillStyle(0x3a1a1a,1).fillRect(GRID_OFFSET_X+p.col*TILE+4,GRID_OFFSET_Y+p.row*TILE+4,TILE-8,TILE-8);
+      p.gfx.lineStyle(1,0xe74c3c,1).strokeRect(GRID_OFFSET_X+p.col*TILE+4,GRID_OFFSET_Y+p.row*TILE+4,TILE-8,TILE-8);
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // 수동 가동
+  // ─────────────────────────────────────────
+  _manualRun() {
+    if (!this.activeBuilding||this.activeBuilding.type==='pipe') return;
+    const b=this.activeBuilding, def=BUILDING_DEFS[b.type];
+    if (def.resource==='mineral') {
+      const wh=this._findConnectedWarehouse(b);
+      const hasEnergy=this._totalEnergy()>0;
+      if (wh?.storage&&hasEnergy) {
+        wh.storage.add('mineral',5);
+        this._showHint('⛏️ +5 광물 → 📦 창고 이송!');
+      } else {
+        if (b.storage) b.storage.add('mineral',5);
+        else playerInventory.add('mineral',5);
+        this._showHint('⛏️ +5 광물 → 내부 보관');
+      }
+      this._refreshPopupSlots();
+      // 팝업 정보 갱신
+      const stored=b.storage?.slots[0]?.count||0;
+      if (this.popupInfo1) this.popupInfo1.setText(`보관 자원: ${stored} 광물`);
     }
   }
 
+  // ─────────────────────────────────────────
+  // 에너지저장고 업그레이드
+  // ─────────────────────────────────────────
+  _upgradeEstore() {
+    if (!this.activeBuilding||this.activeBuilding.type==='pipe') return;
+    const b=this.activeBuilding, next=ESTORE_UPGRADES[b.level];
+    if (!next) return;
+    if (playerInventory.count('mineral')<next.upgradeCost) { this._showHint(`❌ 광물 ${next.upgradeCost}개 필요`); return; }
+    playerInventory.consume('mineral',next.upgradeCost);
+    b.level++;
+    b.storage.maxStack=ESTORE_UPGRADES[b.level-1].slotSize;
+    while (b.storage.slots.length<ESTORE_UPGRADES[b.level-1].slots) b.storage.slots.push({itemId:null,count:0});
+    this._updateHUD();
+    this._openPopup(b.id); // 팝업 재빌드
+  }
+
+  // ─────────────────────────────────────────
+  // 철거
+  // ─────────────────────────────────────────
+  _demolishBuilding() {
+    if (!this.activeBuilding) return;
+    const b=this.activeBuilding;
+    if (b.type==='pipe') {
+      this.grid[b.col][b.row]=null;
+      b.gfx?.destroy();
+      this.pipes=this.pipes.filter(x=>x.id!==b.id);
+    } else {
+      for (let dc=0;dc<b.w;dc++) for (let dr=0;dr<b.h;dr++) this.grid[b.col+dc][b.row+dr]=null;
+      b.gfx.forEach(g=>g.destroy());
+      if (b.pauseOverlay)  b.pauseOverlay.destroy();
+      if (b.pauseOverlay2) b.pauseOverlay2.destroy();
+      this.buildings=this.buildings.filter(x=>x.id!==b.id);
+    }
+    this._redrawGrid(); this._redrawPipeLines(); this._closePopup(); this._updateHUD();
+  }
+
+  // ─────────────────────────────────────────
+  // 파이프
+  // ─────────────────────────────────────────
   _calcPipeEnergyCost() { return Math.floor(this.pipes.length/3); }
 
   _redrawPipeLines() {
@@ -635,161 +1321,161 @@ class BaseScene extends Phaser.Scene {
       const cx=GRID_OFFSET_X+p.col*TILE+TILE/2, cy=GRID_OFFSET_Y+p.row*TILE+TILE/2;
       [{dc:1,dr:0},{dc:-1,dr:0},{dc:0,dr:1},{dc:0,dr:-1}].forEach(({dc,dr})=>{
         const nc=p.col+dc, nr=p.row+dr;
-        if(nc<0||nr<0||nc>=GRID_COLS||nr>=GRID_ROWS) return;
-        const cell=this.grid[nc][nr]; if(!cell) return;
-        if(BUILDING_DEFS[cell.type]?.isPipe) {
+        if (nc<0||nr<0||nc>=GRID_COLS||nr>=GRID_ROWS) return;
+        const cell=this.grid[nc][nr]; if (!cell) return;
+        if (BUILDING_DEFS[cell.type]?.isPipe) {
           const np=this.pipes.find(pp=>pp.id===cell.id);
-          if(!np||np.id<p.id) return;
-          this.pipeLineGfx.lineStyle(3,0x4adc9a,0.8).beginPath().moveTo(cx,cy).lineTo(GRID_OFFSET_X+np.col*TILE+TILE/2,GRID_OFFSET_Y+np.row*TILE+TILE/2).strokePath();
+          if (!np||np.id<p.id) return;
+          this.pipeLineGfx.lineStyle(3,0x4adc9a,0.8).beginPath()
+            .moveTo(cx,cy).lineTo(GRID_OFFSET_X+np.col*TILE+TILE/2,GRID_OFFSET_Y+np.row*TILE+TILE/2).strokePath();
         }
       });
     });
   }
 
-  _findConnectedWarehouse(bld) { return this.buildings.find(b=>BUILDING_DEFS[b.type].isWarehouse) || null; }
-
-  // 파이프용 팝업 추가
-  _openPipePopup(id) {
-    if (this.buildMode) return;
-    const p = this.pipes.find(p => p.id === id); if (!p) return;
-    this.activeBuilding = { ...p, type: 'pipe' };
-    this.popupContainer.setPosition(40, GAME_HEIGHT/2 - 145);
-    this.popupTitle.setText(`🔗 파이프`);
-    [this.popupInfo1, this.popupInfo2, this.popupInfo3].forEach(t=>t.setText(''));
-    [this.popupRunBtn, this.popupRunLbl, this.popupUpgrBtn, this.popupUpgrLbl].forEach(o=>o.setVisible(false));
-    this.popupInfo1.setText('에너지를 소모하여 자원을 이송합니다.');
-    this.popupContainer.setVisible(true); this.popupVisible = true;
-  }
-
-  _openPopup(id) {
-    if (this.buildMode) return;
-    const b = this.buildings.find(b => b.id === id); if (!b) return;
-    this.activeBuilding = b;
-    const def = BUILDING_DEFS[b.type];
-    this.popupContainer.setPosition(40, GAME_HEIGHT/2 - 145);
-    this.popupTitle.setText(`${def.icon} ${def.label}`);
-
-    [this.popupRunBtn, this.popupRunLbl, this.popupUpgrBtn, this.popupUpgrLbl].forEach(o=>o.setVisible(false));
-
-    if (def.isEnergyStorage) {
-      const lv = ESTORE_UPGRADES[b.level-1];
-      this.popupInfo1.setText(`레벨: ${lv.label}`); this.popupInfo2.setText(`슬롯 용량: ${lv.slotSize}개`); this.popupInfo3.setText(`우측 화면에서 아이템을 드래그하세요.`);
-      if (ESTORE_UPGRADES[b.level]) { this.popupUpgrBtn.setVisible(true); this.popupUpgrLbl.setVisible(true).setText(`⬆️ Lv.${ESTORE_UPGRADES[b.level].level} 업그레이드`); this.popupUpgrBtn.setY(114); this.popupUpgrLbl.setY(114); }
-    } else if (def.isWarehouse) {
-      this.popupInfo1.setText(`📦 마을 창고와 연동됨`); this.popupInfo2.setText(''); this.popupInfo3.setText('');
-    } else {
-      const wh = this._findConnectedWarehouse(b);
-      this.popupInfo1.setText(`상태: 정상 가동 대기 중`); this.popupInfo2.setText(wh ? `📦 연결됨` : `📦 미연결 (내부 보관)`); this.popupInfo3.setText(``);
-      this.popupRunBtn.setVisible(true); this.popupRunLbl.setVisible(true); this.popupRunBtn.setY(114); this.popupRunLbl.setY(114);
+  _findConnectedWarehouse(bld) {
+    const starts=new Set();
+    for (let dc=-1;dc<=bld.w;dc++) for (let dr=-1;dr<=bld.h;dr++) {
+      if (dc>=0&&dc<bld.w&&dr>=0&&dr<bld.h) continue;
+      const nc=bld.col+dc, nr=bld.row+dr;
+      if (nc<0||nr<0||nc>=GRID_COLS||nr>=GRID_ROWS) continue;
+      const cell=this.grid[nc][nr];
+      if (cell&&BUILDING_DEFS[cell.type]?.isPipe) starts.add(`${nc},${nr}`);
     }
-    this.popupContainer.setVisible(true); this.popupVisible = true;
-    if (b.storage) this._openBuildingUI(b);
-  }
+    if (starts.size===0) return null;
 
-  _openBuildingUI(b) {
-    if (this.buildingUI) this.buildingUI.destroy();
-    this.buildingUI = new InventoryUI(this, b.storage, {
-      title: `📦 ${b.storage.label}`, depth: 97, x: 360, y: 40,
-      onClose: () => { this.inventoryUI.hide(); this.inventoryUI.container.setPosition(this.inventoryUI.ox, this.inventoryUI.oy); this._closePopup(); }
-    });
-    this.inventoryUI.container.setPosition(360, 260);
-    this.buildingUI.show(); this.inventoryUI.show();
-  }
-
-  _closePopup() {
-    this.popupContainer.setVisible(false); this.popupVisible = false; this.activeBuilding = null;
-    if (this.buildingUI && this.buildingUI.visible) this.buildingUI.hide();
-  }
-
-  _manualRun() {
-    if (!this.activeBuilding || this.activeBuilding.type === 'pipe') return;
-    const b = this.activeBuilding, def = BUILDING_DEFS[b.type];
-    if (def.resource === 'mineral') {
-      const wh = this._findConnectedWarehouse(b);
-      const hasEnergy = this._totalEnergy() > 0;
-      if (wh?.storage && hasEnergy) { wh.storage.add('mineral', 5); this._showHint('⛏️ +5 광물 → 📦 창고 자동 이송!'); }
-      else { b.storage.add('mineral', 5); this._showHint('⛏️ +5 광물 → 채굴기 보관함 (최대 100)'); }
-      if (this.buildingUI) this.buildingUI.refresh();
+    const visited=new Set(), queue=[...starts];
+    while (queue.length) {
+      const key=queue.shift(); if (visited.has(key)) continue; visited.add(key);
+      const [c,r]=key.split(',').map(Number);
+      for (const {dc,dr} of [{dc:1,dr:0},{dc:-1,dr:0},{dc:0,dr:1},{dc:0,dr:-1}]) {
+        const nc=c+dc, nr=r+dr;
+        if (nc<0||nr<0||nc>=GRID_COLS||nr>=GRID_ROWS) continue;
+        const cell=this.grid[nc][nr]; if (!cell) continue;
+        if (BUILDING_DEFS[cell.type]?.isPipe&&!visited.has(`${nc},${nr}`)) {
+          const pp=this.pipes.find(p=>p.col===nc&&p.row===nr);
+          if (!pp?.paused) queue.push(`${nc},${nr}`);
+        } else if (BUILDING_DEFS[cell.type]?.isWarehouse) return this.buildings.find(b=>b.id===cell.id)||null;
+      }
     }
+    return null;
   }
 
-  _upgradeEstore() {
-    if (!this.activeBuilding || this.activeBuilding.type === 'pipe') return;
-    const b = this.activeBuilding, next = ESTORE_UPGRADES[b.level];
-    if (!next) return;
-    if (playerInventory.count('mineral') < next.upgradeCost) { this._showHint(`❌ 광물 부족`); return; }
-    playerInventory.consume('mineral', next.upgradeCost);
-    b.level++;
-    b.storage.maxStack = ESTORE_UPGRADES[b.level-1].slotSize;
-    while (b.storage.slots.length < ESTORE_UPGRADES[b.level-1].slots) b.storage.slots.push({itemId: null, count: 0});
-    this._updateHUD(); this._openPopup(b.id);
-  }
-
-  // 파이프도 철거 가능하도록 로직 추가
-  _demolishBuilding() {
-    if (!this.activeBuilding) return;
-    const b = this.activeBuilding;
-    if (b.type === 'pipe') {
-      this.grid[b.col][b.row] = null;
-      b.gfx.destroy();
-      this.pipes = this.pipes.filter(x => x.id !== b.id);
-    } else {
-      for (let dc=0; dc<b.w; dc++) for (let dr=0; dr<b.h; dr++) this.grid[b.col+dc][b.row+dr] = null;
-      b.gfx.forEach(g=>g.destroy());
-      this.buildings = this.buildings.filter(x=>x.id!==b.id);
+  // BFS: 건물 → 파이프 → 에너지저장고 연결 확인
+  _findConnectedEstore(bld) {
+    const starts = new Set();
+    for (let dc=-1; dc<=bld.w; dc++) for (let dr=-1; dr<=bld.h; dr++) {
+      if (dc>=0&&dc<bld.w&&dr>=0&&dr<bld.h) continue;
+      const nc=bld.col+dc, nr=bld.row+dr;
+      if (nc<0||nr<0||nc>=GRID_COLS||nr>=GRID_ROWS) continue;
+      const cell=this.grid[nc][nr];
+      if (cell&&BUILDING_DEFS[cell.type]?.isPipe) starts.add(`${nc},${nr}`);
     }
-    this._redrawGrid(); this._redrawPipeLines(); this._closePopup(); this._updateHUD();
+    if (starts.size===0) return null;
+    const visited=new Set(), queue=[...starts];
+    while (queue.length) {
+      const key=queue.shift(); if (visited.has(key)) continue; visited.add(key);
+      const [c,r]=key.split(',').map(Number);
+      for (const {dc,dr} of [{dc:1,dr:0},{dc:-1,dr:0},{dc:0,dr:1},{dc:0,dr:-1}]) {
+        const nc=c+dc, nr=r+dr;
+        if (nc<0||nr<0||nc>=GRID_COLS||nr>=GRID_ROWS) continue;
+        const cell=this.grid[nc][nr]; if (!cell) continue;
+        if (BUILDING_DEFS[cell.type]?.isPipe&&!visited.has(`${nc},${nr}`)) {
+          // 정지된 파이프는 경로 차단
+          const pp=this.pipes.find(p=>p.col===nc&&p.row===nr);
+          if (!pp?.paused) queue.push(`${nc},${nr}`);
+        } else if (BUILDING_DEFS[cell.type]?.isEnergyStorage) {
+          const es=this.buildings.find(b=>b.id===cell.id);
+          if (es&&!es.paused&&es.storage.slots.some(sl=>sl.itemId&&sl.count>0)) return es;
+        }
+      }
+    }
+    return null;
   }
 
+  _consumeEstoreEnergy(estore, amount) {
+    let rem=amount;
+    for (const sl of estore.storage.slots) {
+      if (!sl.itemId||sl.count<=0||rem<=0) continue;
+      const power=ENERGY_ITEMS[sl.itemId]?.power||1;
+      const used=Math.min(sl.count,Math.ceil(rem/power));
+      sl.count-=used; rem-=used*power;
+      if (sl.count<=0){sl.itemId=null;sl.count=0;}
+    }
+    return rem<=0;
+  }
+
+  // ─────────────────────────────────────────
+  // 에너지
+  // ─────────────────────────────────────────
   _totalEnergy() {
-    let e = 0;
-    this.buildings.filter(b => BUILDING_DEFS[b.type].isEnergyStorage).forEach(b => {
-      b.storage.slots.forEach(sl => { if (sl.itemId) e += (ENERGY_ITEMS[sl.itemId]?.power||0)*sl.count; });
+    let e=0;
+    this.buildings.filter(b=>BUILDING_DEFS[b.type].isEnergyStorage).forEach(b=>{
+      b.storage.slots.forEach(sl=>{ if (sl.itemId) e+=(ENERGY_ITEMS[sl.itemId]?.power||0)*sl.count; });
     });
     return e;
   }
 
   _consumeEnergy(amount) {
-    let rem = amount;
-    for (const b of this.buildings.filter(b => BUILDING_DEFS[b.type].isEnergyStorage)) {
+    let rem=amount;
+    for (const b of this.buildings.filter(b=>BUILDING_DEFS[b.type].isEnergyStorage)) {
       for (const sl of b.storage.slots) {
-        if (!sl.itemId || sl.count <= 0 || rem <= 0) continue;
-        const power = ENERGY_ITEMS[sl.itemId]?.power || 1;
-        const used  = Math.min(sl.count, Math.ceil(rem/power));
-        sl.count -= used; rem -= used*power;
-        if (sl.count <= 0) { sl.itemId = null; sl.count = 0; }
+        if (!sl.itemId||sl.count<=0||rem<=0) continue;
+        const power=ENERGY_ITEMS[sl.itemId]?.power||1;
+        const used=Math.min(sl.count,Math.ceil(rem/power));
+        sl.count-=used; rem-=used*power;
+        if (sl.count<=0) { sl.itemId=null; sl.count=0; }
       }
     }
-    return rem <= 0;
+    return rem<=0;
   }
 
+  // ─────────────────────────────────────────
+  // 자동 생산 (1초 타이머)
+  // ─────────────────────────────────────────
   _tickProduction() {
-    if (this._totalEnergy() <= 0) { this._updateHUD(); return; }
-    const cost = 1 + this._calcPipeEnergyCost();
-    if (!this._consumeEnergy(cost)) { this._updateHUD(); return; }
+    let anyProduced=false;
+    this.buildings.forEach(b=>{
+      const def=BUILDING_DEFS[b.type];
+      if (def.rate<=0||b.paused) return;       // 정지 또는 비생산 건물
 
-    this.buildings.forEach(b => {
-      const def = BUILDING_DEFS[b.type];
-      if (def.rate <= 0) return;
-      const wh = this._findConnectedWarehouse(b);
-      if (wh?.storage) { wh.storage.add('mineral', def.rate); }
-      else if (b.storage) { b.storage.add('mineral', def.rate); }
+      // 파이프로 연결된 에너지저장고 필요 (estore paused면 null 반환)
+      const estore=this._findConnectedEstore(b);
+      if (!estore) return;
+
+      // 연결된 창고 확인 (창고가 정지 상태면 내부 보관으로 전환)
+      const wh=this._findConnectedWarehouse(b);
+      const whActive = wh && !wh.paused;
+
+      // 에너지 소모: 기본1 + 파이프수 비례 + 창고 연결 시 +1
+      let cost = 1 + this._calcPipeEnergyCost() + (whActive ? 1 : 0);
+      if (b.cores?.reduce) cost = Math.max(1, Math.floor(cost * 0.75));
+      if (!this._consumeEstoreEnergy(estore, cost)) return;
+
+      const rate = b.cores?.efficiency ? Math.ceil(def.rate*1.2) : def.rate;
+      if (whActive) wh.storage.add('mineral', rate);
+      else if (b.storage) b.storage.add('mineral', rate);
+      anyProduced=true;
     });
     this._updateHUD();
-    if (this.inventoryUI?.visible) this.inventoryUI.refresh();
-    if (this.buildingUI?.visible)  this.buildingUI.refresh();
+    if (anyProduced) {
+      if (this.inventoryUI?.visible) this.inventoryUI.refresh();
+      this._refreshPopupSlots();
+    }
   }
 
-  _showHint(msg) {
-    if (!this.hintText) this.hintText=this.add.text(GAME_WIDTH/2,GAME_HEIGHT-14,'',{fontSize:'12px',fill:'#ffffff',fontFamily:'Arial',backgroundColor:'#00000099',padding:{x:8,y:3}}).setOrigin(0.5).setDepth(60);
-    this.hintText.setText(msg).setVisible(true);
-    this.time.delayedCall(2000, () => this.hintText.setVisible(false));
-  }
-
-  update(t, delta) {
+  // ─────────────────────────────────────────
+  // update
+  // ─────────────────────────────────────────
+  update(t,delta) {
     this.joystick.update(this);
-    if (this.popupVisible || this.inventoryUI.visible) return;
-    let vx=0, vy=0;
+    if (this.goldText) this.goldText.setText(`🪙 ${PLAYER_GOLD}`);
+    if (this.popupVisible||this.inventoryUI.visible) {
+      // UI 열려있어도 조이스틱 입력은 처리하되 이동 차단
+      if (this.buildMode) this._updateGhost(); return;
+    }
+
+    let vx=0,vy=0;
     if (this.wasd.A.isDown||this.cursors.left.isDown)  { vx=-this.speed; this.facing='left'; }
     if (this.wasd.D.isDown||this.cursors.right.isDown) { vx= this.speed; this.facing='right'; }
     if (this.wasd.W.isDown||this.cursors.up.isDown)    { vy=-this.speed; this.facing='up'; }
@@ -797,43 +1483,754 @@ class BaseScene extends Phaser.Scene {
     if (this.joystick.active) { vx=this.joystick.vx*this.speed; vy=this.joystick.vy*this.speed; }
     if (vx!==0&&vy!==0) { vx*=0.707; vy*=0.707; }
 
-    this.px = Phaser.Math.Clamp(this.px+vx*(delta/1000), GRID_OFFSET_X+12, GRID_OFFSET_X+GRID_COLS*TILE-12);
-    this.py = Phaser.Math.Clamp(this.py+vy*(delta/1000), GRID_OFFSET_Y+12, GRID_OFFSET_Y+GRID_ROWS*TILE-12);
-    this.player.setPosition(this.px, this.py);
-    this.playerDir.setPosition(this.px, this.py-16).setAngle({ up:0, down:180, left:270, right:90 }[this.facing] || 0);
+    const dt=delta/1000;
+    this.px=Phaser.Math.Clamp(this.px+vx*dt,GRID_OFFSET_X+12,GRID_OFFSET_X+GRID_COLS*TILE-12);
+    this.py=Phaser.Math.Clamp(this.py+vy*dt,GRID_OFFSET_Y+12,GRID_OFFSET_Y+GRID_ROWS*TILE-12);
+    this.player.setPosition(this.px,this.py);
+    this.playerDir.setPosition(this.px,this.py-16).setAngle({up:0,down:180,left:270,right:90}[this.facing]||0);
 
     if (this.buildMode) this._updateGhost();
 
-    // 건물 및 파이프 감지 로직 통합
-    let nearest=null, nd=Infinity, nType=null;
-    const RANGE = TILE * 2.5;
+    // 근처 건물/파이프 감지
+    let nearest=null,nd=Infinity,nType=null;
+    const RANGE=TILE*2.5;
     this.buildings.forEach(b=>{
-      const d=Phaser.Math.Distance.Between(this.px,this.py, GRID_OFFSET_X+(b.col+b.w/2)*TILE, GRID_OFFSET_Y+(b.row+b.h/2)*TILE);
-      if (d<RANGE && d<nd) { nearest=b; nd=d; nType='bldg'; }
+      const d=Phaser.Math.Distance.Between(this.px,this.py,GRID_OFFSET_X+(b.col+b.w/2)*TILE,GRID_OFFSET_Y+(b.row+b.h/2)*TILE);
+      if (d<RANGE&&d<nd) { nearest=b; nd=d; nType='bldg'; }
     });
     this.pipes.forEach(p=>{
-      const d=Phaser.Math.Distance.Between(this.px,this.py, GRID_OFFSET_X+p.col*TILE+TILE/2, GRID_OFFSET_Y+p.row*TILE+TILE/2);
-      if (d<RANGE && d<nd) { nearest={...p, type:'pipe'}; nd=d; nType='pipe'; }
+      const d=Phaser.Math.Distance.Between(this.px,this.py,GRID_OFFSET_X+p.col*TILE+TILE/2,GRID_OFFSET_Y+p.row*TILE+TILE/2);
+      if (d<RANGE&&d<nd) { nearest={...p,type:'pipe'}; nd=d; nType='pipe'; }
     });
-
     this.nearbyBuilding=nearest;
     if (nearest) {
-      const lbl = nType === 'pipe' ? '파이프' : BUILDING_DEFS[nearest.type].label;
-      this.interactPrompt.setText(`[E] ${lbl}`).setPosition(GRID_OFFSET_X+(nearest.col+(nearest.w||1)/2)*TILE, GRID_OFFSET_Y+nearest.row*TILE-6).setVisible(true);
+      const lbl=nType==='pipe'?'파이프':BUILDING_DEFS[nearest.type].label;
+      this.interactPrompt.setText(`[E] ${lbl}`)
+        .setPosition(GRID_OFFSET_X+(nearest.col+(nearest.w||1)/2)*TILE,GRID_OFFSET_Y+nearest.row*TILE-6)
+        .setVisible(true);
     } else {
       this.interactPrompt.setVisible(false);
     }
   }
 }
 
+
+
+// ══════════════════════════════════════════════════════════════
+// 전투 시스템 전역 데이터
+// ══════════════════════════════════════════════════════════════
+
+if (!window.FIELD_DATA) window.FIELD_DATA = { cleared: new Set() };
+
+// ── 드롭 테이블 정의
+// 각 스테이지 클리어 시 적 한 마리당 1회 롤
+// drops: [ { id, w(가중치), min, max } ]
+const STAGE_DATA = {
+  '1-1':  { world:'어둠의 숲', enemies:['slime'],          count:4,  expReward:8,
+    drops:[{id:'energy_basic',w:60,min:1,max:3},{id:'gold',w:30,min:5,max:15}] },
+  '1-2':  { world:'어둠의 숲', enemies:['slime','goblin'],  count:5,  expReward:12,
+    drops:[{id:'energy_basic',w:55,min:1,max:4},{id:'gold',w:32,min:8,max:20}] },
+  '1-3':  { world:'어둠의 숲', enemies:['goblin'],          count:5,  expReward:16,
+    drops:[{id:'energy_basic',w:50,min:2,max:4},{id:'gold',w:30,min:10,max:25},{id:'energy_mid',w:3,min:1,max:1}] },
+  '1-4':  { world:'어둠의 숲', enemies:['goblin','wolf'],   count:6,  expReward:20,
+    drops:[{id:'energy_basic',w:40,min:2,max:5},{id:'energy_mid',w:12,min:1,max:2},{id:'gold',w:30,min:15,max:30}] },
+  '1-5':  { world:'어둠의 숲', enemies:['wolf'],             count:6,  expReward:26,
+    drops:[{id:'energy_basic',w:32,min:2,max:5},{id:'energy_mid',w:22,min:1,max:2},{id:'gold',w:28,min:20,max:40},{id:'core_efficiency',w:12,min:1,max:1},{id:'core_reduce',w:6,min:1,max:1}] },
+  '1-6':  { world:'어둠의 숲', enemies:['wolf','orc'],       count:6,  expReward:30,
+    drops:[{id:'energy_basic',w:25,min:2,max:6},{id:'energy_mid',w:28,min:1,max:3},{id:'gold',w:28,min:25,max:50}] },
+  '1-7':  { world:'어둠의 숲', enemies:['orc'],              count:7,  expReward:36,
+    drops:[{id:'energy_mid',w:45,min:1,max:3},{id:'energy_basic',w:18,min:2,max:5},{id:'gold',w:25,min:30,max:60}] },
+  '1-8':  { world:'어둠의 숲', enemies:['orc','darkelf'],    count:7,  expReward:42,
+    drops:[{id:'energy_mid',w:40,min:2,max:4},{id:'energy_high',w:5,min:1,max:1},{id:'gold',w:28,min:35,max:70}] },
+  '1-9':  { world:'어둠의 숲', enemies:['darkelf'],          count:8,  expReward:48,
+    drops:[{id:'energy_mid',w:35,min:2,max:4},{id:'energy_high',w:10,min:1,max:2},{id:'gold',w:25,min:40,max:80}] },
+  '1-10': { world:'어둠의 숲', enemies:['darkelf','wolf'],   count:9,  expReward:58,
+    drops:[{id:'energy_mid',w:28,min:2,max:5},{id:'energy_high',w:18,min:1,max:2},{id:'gold',w:22,min:50,max:100}] },
+  // 보스 — 보스게이트 건물로만 진입
+  '1-BOSS':{ world:'어둠의 숲', enemies:['boss_golem'], count:1, expReward:200, isBoss:true,
+    drops:[{id:'energy_high',w:35,min:3,max:6},{id:'gate_shard',w:28,min:1,max:2},{id:'upgrade_crystal',w:20,min:1,max:2},{id:'core_efficiency',w:12,min:1,max:1},{id:'core_reduce',w:5,min:1,max:1}] },
+};
+
+// 드롭 1회 롤 함수
+function rollOnce(drops) {
+  const totalW = drops.reduce((s,d)=>s+d.w, 0);
+  let r = Math.random()*totalW, acc=0;
+  for (const d of drops) {
+    acc+=d.w;
+    if (r<acc) return { id:d.id, qty:d.min+Math.floor(Math.random()*(d.max-d.min+1)) };
+  }
+  const last=drops[drops.length-1];
+  return { id:last.id, qty:last.min };
+}
+
+// ── 적 정의
+const ENEMY_DEFS = {
+  slime:     { label:'슬라임',    color:0x2ecc71, borderColor:0x27ae60, size:13, hp:35,  atk:6,  spd:50,  atkRange:18, atkCd:1400, detRange:200, exp:5   },
+  goblin:    { label:'고블린',    color:0x8bc34a, borderColor:0x558b2f, size:14, hp:60,  atk:10, spd:68,  atkRange:20, atkCd:1200, detRange:220, exp:10  },
+  wolf:      { label:'늑대',      color:0x795548, borderColor:0x4e342e, size:14, hp:80,  atk:14, spd:88,  atkRange:18, atkCd:1000, detRange:240, exp:15  },
+  orc:       { label:'오크',      color:0x4caf50, borderColor:0x1b5e20, size:18, hp:130, atk:20, spd:55,  atkRange:22, atkCd:1600, detRange:200, exp:22  },
+  darkelf:   { label:'다크엘프',  color:0x673ab7, borderColor:0x311b92, size:14, hp:100, atk:25, spd:82,  atkRange:18, atkCd:1100, detRange:260, exp:30  },
+  boss_golem:{ label:'골렘 수호자', color:0x546e7a, borderColor:0x263238, size:32, hp:800, atk:35, spd:42, atkRange:36, atkCd:2000, detRange:350, exp:150, isBoss:true },
+};
+
+// ── 플레이어 영구 스탯 (씬 이동 시 유지)
+const PLAYER_STATS = {
+  job:'검사', maxHp:200, hp:200,
+  atk:30, def:8, spd:158,
+  level:1, exp:0, expToNext:100,
+};
+
+// ══════════════════════════════════════════════════════════════
+// StageSelectScene — 스테이지 선택
+// ══════════════════════════════════════════════════════════════
+class StageSelectScene extends Phaser.Scene {
+  constructor() { super('StageSelectScene'); }
+
+  create() {
+    this.cameras.main.fadeIn(250);
+    this.add.rectangle(0,0,GAME_WIDTH,GAME_HEIGHT,0x06000c).setOrigin(0);
+    // 배경 점
+    const bg=this.add.graphics();
+    for (let i=0;i<50;i++) bg.fillStyle(0x1a0035,Phaser.Math.FloatBetween(0.1,0.3)).fillCircle(Phaser.Math.Between(0,GAME_WIDTH),Phaser.Math.Between(0,GAME_HEIGHT),Phaser.Math.Between(1,6));
+
+    // 헤더
+    this.add.rectangle(0,0,GAME_WIDTH,52,0x0a0015).setOrigin(0);
+    this.add.rectangle(0,51,GAME_WIDTH,2,0xe74c3c).setOrigin(0);
+    this.add.text(GAME_WIDTH/2,26,'⚔️  필드 — 스테이지 선택',{fontSize:'16px',fill:'#e87070',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5);
+
+    const backBtn=this.add.rectangle(56,26,96,30,0x1a0a1a).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x4a2c6a);
+    this.add.text(56,26,'← 마을로',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5);
+    backBtn.on('pointerdown',()=>{ this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('HubScene')); });
+
+    const ps=PLAYER_STATS;
+    this.add.text(GAME_WIDTH-130,26,`Lv.${ps.level} 검사  ATK:${ps.atk}  DEF:${ps.def}`,{fontSize:'11px',fill:'#7788aa',fontFamily:'Arial'}).setOrigin(1,0.5);
+    this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setStrokeStyle(1,0x888800);
+    this.add.text(GAME_WIDTH-8,15,`🪙 ${PLAYER_GOLD}`,{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5);
+
+    this.add.text(GAME_WIDTH/2,72,'— 제1구역 : 어둠의 숲 —',{fontSize:'13px',fill:'#3a5a3a',fontFamily:'Arial'}).setOrigin(0.5);
+
+    // 스테이지 그리드
+    const ids=['1-1','1-2','1-3','1-4','1-5','1-6','1-7','1-8','1-9','1-10'];
+    const COLS=5,BW=160,BH=68,GX=10,GY=10;
+    const gridW=COLS*BW+(COLS-1)*GX;
+    const sx=(GAME_WIDTH-gridW)/2, sy=86;
+
+    ids.forEach((id,i)=>{
+      const col=i%COLS, row=Math.floor(i/COLS);
+      const bx=sx+col*(BW+GX), by=sy+row*(BH+GY);
+      const cleared=FIELD_DATA.cleared.has(id);
+      const bgC=cleared?0x0c2010:0x0e0a1e, bdC=cleared?0x2ecc71:0x4a2c6a;
+
+      const btn=this.add.rectangle(bx+BW/2,by+BH/2,BW,BH,bgC).setInteractive({useHandCursor:true}).setStrokeStyle(2,bdC);
+      this.add.text(bx+BW/2,by+14,id,{fontSize:'15px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5);
+      const sd=STAGE_DATA[id];
+      const names=sd.enemies.map(e=>ENEMY_DEFS[e]?.label||e).join(', ');
+      this.add.text(bx+BW/2,by+30,names,{fontSize:'9px',fill:'#778877',fontFamily:'Arial'}).setOrigin(0.5);
+      const icons=(sd.drops||[]).slice(0,5).map(d=>ITEM_DEFS[d.id]?.icon||'?').join(' ');
+      this.add.text(bx+BW/2,by+46,`${icons}  EXP+${sd.expReward}`,{fontSize:'9px',fill:'#445544',fontFamily:'Arial'}).setOrigin(0.5);
+      this.add.text(bx+BW/2,by+58,`×${sd.count}마리`,{fontSize:'9px',fill:'#334433',fontFamily:'Arial'}).setOrigin(0.5);
+      if (cleared) this.add.text(bx+BW-4,by+4,'✓',{fontSize:'13px',fill:'#2ecc71',fontFamily:'Arial'}).setOrigin(1,0);
+
+      btn.on('pointerover',()=>btn.setFillStyle(cleared?0x184028:0x1a1035));
+      btn.on('pointerout', ()=>btn.setFillStyle(bgC));
+      btn.on('pointerdown',()=>this._startStage(id));
+    });
+
+    // 보스 안내 (게이트 건물로만 진입)
+    const bossCleared=FIELD_DATA.cleared.has('1-BOSS');
+    const infoY=sy+2*(BH+GY)+14;
+    this.add.rectangle(GAME_WIDTH/2,infoY+22,GAME_WIDTH-60,42,0x0c0808).setStrokeStyle(1,0x3a1515);
+    this.add.text(GAME_WIDTH/2,infoY+10,'💀  보스전은 기지의 [보스 게이트] 건물에 에너지를 충전한 뒤 건물 팝업에서 진입',{fontSize:'10px',fill:'#664444',fontFamily:'Arial'}).setOrigin(0.5);
+    this.add.text(GAME_WIDTH/2,infoY+26,bossCleared?'✓  골렘 수호자 처치 완료 — 차원의 파편으로 다음 구역 해금':'🌀  골렘 수호자  |  보스 게이트 충전 필요량: 에너지 30',{fontSize:'11px',fill:bossCleared?'#cc5544':'#553333',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5);
+  }
+
+  _startStage(id) {
+    FIELD_DATA.currentStage=id;
+    PLAYER_STATS.hp=PLAYER_STATS.maxHp;
+    this.cameras.main.fadeOut(250);
+    this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('FieldScene'));
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// FieldScene — 핵앤슬래시 전투
+// ══════════════════════════════════════════════════════════════
 class FieldScene extends Phaser.Scene {
   constructor() { super('FieldScene'); }
+
   create() {
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x1a0a0a).setOrigin(0);
-    this.add.text(GAME_WIDTH/2, GAME_HEIGHT/2, '🚧 Phase 2: 필드 전투 구현 예정', { fontSize: '20px', fill: '#555555', fontFamily: 'Arial' }).setOrigin(0.5);
-    const btn = this.add.rectangle(60, 25, 100, 34, 0x2c3e50).setInteractive({ useHandCursor: true });
-    this.add.text(60, 25, '← 마을로', { fontSize: '13px', fill: '#aaaaaa', fontFamily: 'Arial' }).setOrigin(0.5);
-    btn.on('pointerdown', () => this.scene.start('HubScene'));
+    this.cameras.main.fadeIn(250);
+    this.stageId  = FIELD_DATA.currentStage || '1-1';
+    this.stageDef = STAGE_DATA[this.stageId];
+    this.isBoss   = !!this.stageDef.isBoss;
+
+    const ps=PLAYER_STATS;
+    this.pl = {
+      x:GAME_WIDTH/2, y:GAME_HEIGHT/2+30,
+      hp:ps.hp, maxHp:ps.maxHp,
+      atk:ps.atk, def:ps.def, spd:ps.spd,
+      facing:0, alive:true, invincible:false, invTimer:0,
+      autoMode:false,
+    };
+    this.skills = { spin:{ label:'선풍참', cooldown:4000, lastUsed:-9999 } };
+    this.enemies      = [];
+    this.enemyLabels  = [];   // 몬스터 이름 텍스트 오브젝트
+    this.done         = false;
+    this.autoAtkTimer = 0;
+
+    // ── 웨이브 시스템
+    this.currentWave  = 0;     // 현재 웨이브 (0-indexed, 총 5웨이브)
+    this.TOTAL_WAVES  = this.isBoss ? 1 : 5;
+    this.waveTimer    = 0;     // 웨이브 남은 시간(ms)
+    this.WAVE_DURATION= 60000; // 1분
+    this.waveActive   = false;
+    this.totalEnemies = 0;
+
+    this._buildBg();
+    this.enemyGfx  = this.add.graphics().setDepth(20);
+    this.atkArcGfx = this.add.graphics().setDepth(35);
+    this.playerGfx = this.add.graphics().setDepth(40);
+    this._buildHUD();
+
+    // ── 입력
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.wasd    = this.input.keyboard.addKeys({W:87,A:65,S:83,D:68});
+    this.key1    = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+    this.keyEsc  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+    // 마우스/터치 클릭 → 기본 공격
+    this.input.on('pointerdown',(ptr)=>{
+      if (!this.pl.autoMode && this.pl.alive && !this.done) {
+        const angle=Math.atan2(ptr.y-this.pl.y, ptr.x-this.pl.x);
+        this.pl.facing=angle;
+        this._swingAttack(angle, false);
+      }
+    });
+    this.key1.on('down',   ()=>this._trySkill('spin'));
+    this.keyEsc.on('down', ()=>this._exitToSelect());
+
+    this.joystick = new VirtualJoystick(this, 80, GAME_HEIGHT-70);
+    this._buildMobileButtons();
+    this._showStageTitle();
+    // 스테이지 타이틀 후 첫 웨이브 시작
+    this.time.delayedCall(1600, ()=>this._startNextWave());
+  }
+
+  // ── 배경
+  _buildBg() {
+    this.add.rectangle(0,0,GAME_WIDTH,GAME_HEIGHT,0x080e08).setOrigin(0).setDepth(0);
+    const g=this.add.graphics().setDepth(0);
+    g.lineStyle(1,0x0d190d,1);
+    for (let x=0;x<GAME_WIDTH;x+=48)   g.lineBetween(x,52,x,GAME_HEIGHT);
+    for (let y=52;y<GAME_HEIGHT;y+=48) g.lineBetween(0,y,GAME_WIDTH,y);
+    for (let i=0;i<22;i++) {
+      const rx=((i*97+13)%GAME_WIDTH+GAME_WIDTH)%GAME_WIDTH;
+      const ry=52+(((i*53+7)%(GAME_HEIGHT-52))+GAME_HEIGHT-52)%(GAME_HEIGHT-52);
+      g.fillStyle(0x0a180a,1); g.fillCircle(rx,ry,Phaser.Math.Between(5,15));
+    }
+  }
+
+  // ── HUD
+  _buildHUD() {
+    this.add.rectangle(0,0,GAME_WIDTH,52,0x08000f,0.96).setOrigin(0).setDepth(80);
+    this.add.rectangle(0,51,GAME_WIDTH,2,0xe74c3c).setOrigin(0).setDepth(80);
+
+    const backBtn=this.add.rectangle(52,26,90,30,0x180a18).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x4a2c6a);
+    this.add.text(52,26,'← 나가기',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82);
+    backBtn.on('pointerdown',()=>this._exitToSelect());
+
+    this.add.text(GAME_WIDTH/2,15,`스테이지  ${this.stageId}`,{fontSize:'14px',fill:'#e87070',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(81);
+    this.add.text(GAME_WIDTH/2,34,this.stageDef.world,{fontSize:'10px',fill:'#3a5a3a',fontFamily:'Arial'}).setOrigin(0.5).setDepth(81);
+
+    this.add.text(113,18,'HP',{fontSize:'11px',fill:'#887788',fontFamily:'Arial'}).setOrigin(1,0.5).setDepth(81);
+    this.hpBarBg=this.add.rectangle(116,18,180,12,0x2a0e0e).setOrigin(0,0.5).setDepth(81);
+    this.hpBar  =this.add.rectangle(116,18,180,12,0xe74c3c).setOrigin(0,0.5).setDepth(82);
+    this.hpText =this.add.text(300,18,'',{fontSize:'10px',fill:'#ccaaaa',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(83);
+
+    this.autoBtn=this.add.rectangle(GAME_WIDTH-110,26,100,28,0x0e1828).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x3498db);
+    this.autoBtnLbl=this.add.text(GAME_WIDTH-110,26,'수동 모드',{fontSize:'11px',fill:'#4a8ab8',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82);
+    this.autoBtn.on('pointerdown',()=>this._toggleAuto());
+
+    this.enemyCounter=this.add.text(GAME_WIDTH/2-140,36,'',{fontSize:'11px',fill:'#f1c40f',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(81);
+    this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(82).setStrokeStyle(1,0x888800);
+    this.goldText=this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(83);
+
+    // ── 스킬 바 (하단)
+    const barY=GAME_HEIGHT-28;
+    // 기본공격
+    this.add.rectangle(GAME_WIDTH/2-80,barY,54,40,0x180820).setDepth(81).setStrokeStyle(2,0x6c3483);
+    this.add.text(GAME_WIDTH/2-80,barY-6,'⚔️',{fontSize:'16px'}).setOrigin(0.5).setDepth(82);
+    this.add.text(GAME_WIDTH/2-80,barY+10,'클릭',{fontSize:'9px',fill:'#665566',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82);
+    // 스킬1
+    this.skill1Bg=this.add.rectangle(GAME_WIDTH/2,barY,54,40,0x180828).setDepth(81).setStrokeStyle(2,0x9b59b6);
+    this.add.text(GAME_WIDTH/2,barY-6,'🌀',{fontSize:'16px'}).setOrigin(0.5).setDepth(82);
+    this.add.text(GAME_WIDTH/2,barY+10,'[1] 선풍참',{fontSize:'8px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82);
+    this.skill1CdOverlay=this.add.rectangle(GAME_WIDTH/2,barY,54,40,0x000000,0).setDepth(83);
+    this.skill1CdText=this.add.text(GAME_WIDTH/2,barY,'',{fontSize:'12px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(84);
+  }
+
+  _buildMobileButtons() {
+    const atkBtn=this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-80,34,0x3a1a4a,0.8).setDepth(81).setInteractive({useHandCursor:true});
+    atkBtn.setStrokeStyle(2,0x9b59b6);
+    this.add.text(GAME_WIDTH-80,GAME_HEIGHT-80,'⚔️',{fontSize:'22px'}).setOrigin(0.5).setDepth(82);
+    atkBtn.on('pointerdown',()=>{ if (!this.pl.autoMode && this.pl.alive && !this.done) this._swingAttack(this.pl.facing,false); });
+
+    const sk1Btn=this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x2a1a3a,0.8).setDepth(81).setInteractive({useHandCursor:true});
+    sk1Btn.setStrokeStyle(2,0x6c3483);
+    this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'🌀',{fontSize:'18px'}).setOrigin(0.5).setDepth(82);
+    sk1Btn.on('pointerdown',()=>this._trySkill('spin'));
+  }
+
+  _startNextWave() {
+    if (this.done) return;
+    this.currentWave++;
+    if (this.currentWave > this.TOTAL_WAVES) return;
+
+    const sd=this.stageDef;
+    // 웨이브마다 몬스터 수 증가 (보스는 고정)
+    const baseCount = this.isBoss ? sd.count : Math.floor(sd.count*(1+this.currentWave*0.5));
+    this.waveTimer = this.WAVE_DURATION;
+    this.waveActive = true;
+    this.totalEnemies = (this.totalEnemies||0) + baseCount;
+
+    // 웨이브 알림
+    const wt=this.add.text(GAME_WIDTH/2,90,this.isBoss?'💀 보스 등장!':
+      `웨이브 ${this.currentWave} / ${this.TOTAL_WAVES}`,{
+      fontSize:'20px',fill:this.isBoss?'#e74c3c':'#f1c40f',fontFamily:'Arial',fontStyle:'bold',
+      stroke:'#000000',strokeThickness:4
+    }).setOrigin(0.5).setDepth(70).setAlpha(0);
+    this.tweens.add({targets:wt,alpha:1,duration:300,yoyo:true,hold:800,onComplete:()=>wt.destroy()});
+
+    // 몬스터 스폰
+    for (let i=0;i<baseCount;i++) {
+      const type=sd.enemies[i%sd.enemies.length];
+      const def=ENEMY_DEFS[type];
+      const angle=Math.PI*2*i/baseCount+Phaser.Math.FloatBetween(-0.2,0.2);
+      const dist=this.isBoss?300:Phaser.Math.FloatBetween(260,400);
+      const ex=Phaser.Math.Clamp(this.pl.x+Math.cos(angle)*dist,30,GAME_WIDTH-30);
+      const ey=Phaser.Math.Clamp(this.pl.y+Math.sin(angle)*dist,60,GAME_HEIGHT-30);
+      const e={ type,def,x:ex,y:ey,hp:def.hp,maxHp:def.hp,alive:true,knockVx:0,knockVy:0,atkCooldown:0 };
+      this.enemies.push(e);
+      // 이름 텍스트 생성
+      // 몬스터 이름 색상 (보스=빨강, 엘리트=주황, 일반=흰색)
+      const lblColor = def.isBoss?'#ff4444':def.size>=18?'#ffaa44':'#ffffff';
+      const lbl=this.add.text(ex,ey-def.size-14,def.label,{
+        fontSize:'10px',fill:lblColor,fontFamily:'Arial',fontStyle:def.isBoss?'bold':'normal',
+        stroke:'#000000',strokeThickness:3
+      }).setOrigin(0.5).setDepth(22);
+      this.enemyLabels.push({e,lbl});
+    }
+  }
+
+  _spawnEnemies() {
+    // 레거시 — 웨이브 시스템으로 대체됨 (사용 안 함)
+  }
+
+  _showStageTitle() {
+    const t1=this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-24,`스테이지  ${this.stageId}`,{
+      fontSize:'30px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold',stroke:'#000000',strokeThickness:5
+    }).setOrigin(0.5).setDepth(100).setAlpha(0);
+    const sub=this.isBoss?'💀  BOSS  STAGE':this.stageDef.enemies.map(e=>ENEMY_DEFS[e]?.label||e).join(' · ');
+    const t2=this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+14,sub,{
+      fontSize:'14px',fill:this.isBoss?'#e87070':'#888888',fontFamily:'Arial',stroke:'#000000',strokeThickness:3
+    }).setOrigin(0.5).setDepth(100).setAlpha(0);
+    this.tweens.add({targets:[t1,t2],alpha:1,duration:350,yoyo:true,hold:1000,onComplete:()=>{t1.destroy();t2.destroy();}});
+  }
+
+  _toggleAuto() {
+    this.pl.autoMode=!this.pl.autoMode;
+    if (this.pl.autoMode) {
+      this.autoBtnLbl.setText('자동 모드').setStyle({fill:'#2ecc71'});
+      this.autoBtn.setFillStyle(0x0e2a1a).setStrokeStyle(1,0x2ecc71);
+    } else {
+      this.autoBtnLbl.setText('수동 모드').setStyle({fill:'#4a8ab8'});
+      this.autoBtn.setFillStyle(0x0e1828).setStrokeStyle(1,0x3498db);
+    }
+  }
+
+  // ── 공격
+  _swingAttack(angle, isMirrored) {
+    if (!this.pl.alive||this.done) return;
+    const p=this.pl, ARC=Phaser.Math.DegToRad(100), RANGE=115;
+    this._drawSwingArc(p.x,p.y,angle,ARC,RANGE);
+    this.enemies.forEach(e=>{
+      if (!e.alive) return;
+      const dx=e.x-p.x, dy=e.y-p.y;
+      if (Math.sqrt(dx*dx+dy*dy)>RANGE+e.def.size) return;
+      const ea=Math.atan2(dy,dx);
+      let diff=ea-angle;
+      while(diff> Math.PI) diff-=Math.PI*2;
+      while(diff<-Math.PI) diff+=Math.PI*2;
+      if (Math.abs(diff)>ARC/2) return;
+      const dmg=Math.max(1,p.atk+Phaser.Math.Between(-4,4));
+      const nd=Math.sqrt(dx*dx+dy*dy)||1;
+      this._hitEnemy(e,dmg,dx/nd,dy/nd,false);
+    });
+  }
+
+  _spinAttack() {
+    if (!this.pl.alive||this.done) return;
+    const p=this.pl, RANGE=130;
+    this._drawSpinFx(p.x,p.y,RANGE);
+    this.enemies.forEach(e=>{
+      if (!e.alive) return;
+      const dx=e.x-p.x, dy=e.y-p.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if (dist>RANGE+e.def.size) return;
+      const dmg=Math.max(1,Math.floor(p.atk*1.9)+Phaser.Math.Between(-6,6));
+      const nd=dist||1;
+      this._hitEnemy(e,dmg,dx/nd,dy/nd,true);
+    });
+  }
+
+  _trySkill(id) {
+    if (!this.pl.alive||this.done) return;
+    const sk=this.skills[id]; if (!sk) return;
+    const now=this.time.now;
+    if (now-sk.lastUsed<sk.cooldown) return;
+    sk.lastUsed=now;
+    if (id==='spin') this._spinAttack();
+  }
+
+  // ── 피격
+  _hitEnemy(e,dmg,nx,ny,isCrit) {
+    e.hp=Math.max(0,e.hp-dmg);
+    e.knockVx=nx*160; e.knockVy=ny*160;
+    this._spawnDmgText(e.x,e.y-e.def.size,dmg,isCrit);
+    if (e.hp<=0&&e.alive) { e.alive=false; this._onEnemyDeath(e); }
+  }
+
+  _hitPlayer(dmg) {
+    if (this.pl.invincible||!this.pl.alive||this.done) return;
+    const actual=Math.max(1,dmg-this.pl.def);
+    this.pl.hp=Math.max(0,this.pl.hp-actual);
+    this.pl.invincible=true; this.pl.invTimer=700;
+    this._spawnDmgText(this.pl.x,this.pl.y-20,actual,false);
+    this.cameras.main.shake(100,0.005);
+    if (this.pl.hp<=0) { this.pl.alive=false; this.time.delayedCall(400,()=>this._gameOver()); }
+  }
+
+  // ── 적 사망 & 드롭
+  _onEnemyDeath(e) {
+    // 사망 파티클
+    const g=this.add.graphics().setDepth(25);
+    g.fillStyle(e.def.color,0.7); g.fillCircle(e.x,e.y,e.def.size*1.8);
+    this.tweens.add({targets:g,alpha:0,scaleX:2.4,scaleY:2.4,duration:360,onComplete:()=>g.destroy()});
+
+    // 드롭 1회 롤
+    if (this.stageDef.drops?.length) {
+      const drop=rollOnce(this.stageDef.drops);
+      if (drop.id==='gold') {
+        PLAYER_GOLD+=drop.qty;
+        this._spawnPickupText(e.x,e.y-10,`🪙 +${drop.qty}`,'#f1c40f');
+        this._refreshGoldHUD();
+      } else {
+        playerInventory.add(drop.id,drop.qty);
+        const di=ITEM_DEFS[drop.id];
+        if (di) this._spawnPickupText(e.x,e.y-10,`${di.icon} +${drop.qty}`,'#f5f0aa');
+      }
+    }
+
+    // EXP
+    PLAYER_STATS.exp+=e.def.exp;
+    if (PLAYER_STATS.exp>=PLAYER_STATS.expToNext) {
+      PLAYER_STATS.level++;
+      PLAYER_STATS.exp-=PLAYER_STATS.expToNext;
+      PLAYER_STATS.expToNext=Math.floor(PLAYER_STATS.expToNext*1.45);
+      PLAYER_STATS.atk+=3; PLAYER_STATS.maxHp+=15; PLAYER_STATS.def+=1;
+      this.pl.atk=PLAYER_STATS.atk; this.pl.maxHp=PLAYER_STATS.maxHp;
+      this.pl.hp=Math.min(this.pl.hp+30,this.pl.maxHp);
+      this._showLevelUp();
+    }
+
+    if (this.enemies.every(e=>!e.alive) && !this.done) {
+      if (this.currentWave >= this.TOTAL_WAVES) {
+        this.time.delayedCall(500,()=>this._stageClear());
+      } else {
+        // 다음 웨이브 시작 (3초 대기)
+        this.waveActive=false;
+        const wct=this.add.text(GAME_WIDTH/2,110,'웨이브 클리어!',{
+          fontSize:'16px',fill:'#2ecc71',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:3
+        }).setOrigin(0.5).setDepth(70).setAlpha(0);
+        this.tweens.add({targets:wct,alpha:1,duration:250,yoyo:true,hold:600,onComplete:()=>wct.destroy()});
+        this.time.delayedCall(3000,()=>this._startNextWave());
+      }
+    }
+  }
+
+  // ── 클리어 / 게임오버
+  _stageClear() {
+    if (this.done) return;
+    this.done=true;
+    FIELD_DATA.cleared.add(this.stageId);
+    PLAYER_STATS.hp=this.pl.hp;
+
+    this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.65).setDepth(90);
+    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-80,'✨  STAGE  CLEAR!',{
+      fontSize:'34px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:5
+    }).setOrigin(0.5).setDepth(91);
+    this.cameras.main.flash(400,255,220,60);
+
+    PLAYER_STATS.exp+=this.stageDef.expReward;
+    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-44,`EXP  +${this.stageDef.expReward}`,{fontSize:'16px',fill:'#2ecc71',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91);
+    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-22,`Lv.${PLAYER_STATS.level}  HP:${this.pl.hp}/${this.pl.maxHp}`,{fontSize:'13px',fill:'#8888aa',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91);
+
+    // 보스 특별 드롭 표시
+    if (this.isBoss) {
+      this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+2,'🏆  골렘 수호자 처치!',{fontSize:'15px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91);
+      if (this.stageDef.drops?.length) {
+        const drop=rollOnce(this.stageDef.drops);
+        if (drop.id==='gold') { PLAYER_GOLD+=drop.qty; } else { playerInventory.add(drop.id,drop.qty); }
+        const di=ITEM_DEFS[drop.id];
+        const col=di?('#'+di.color.toString(16).padStart(6,'0')):'#ffffff';
+        this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+22,`${di?.icon||''}  ${di?.label||drop.id}  ×${drop.qty}  획득!`,{fontSize:'14px',fill:col,fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91);
+      }
+    }
+
+    this._addResultButtons(true);
+  }
+
+  _gameOver() {
+    if (this.done) return;
+    this.done=true; PLAYER_STATS.hp=Math.max(1,this.pl.hp);
+    this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.75).setDepth(90);
+    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-60,'💀  GAME  OVER',{
+      fontSize:'34px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:5
+    }).setOrigin(0.5).setDepth(91);
+    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-20,`스테이지  ${this.stageId}  실패`,{fontSize:'14px',fill:'#888888',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91);
+    this.cameras.main.shake(300,0.012);
+    this._addResultButtons(false);
+  }
+
+  _addResultButtons(isWin) {
+    const by=GAME_HEIGHT/2+54;
+    const r1=this.add.rectangle(GAME_WIDTH/2-86,by,152,40,isWin?0x0e2a1a:0x2a0e0e).setInteractive({useHandCursor:true}).setDepth(91).setStrokeStyle(2,isWin?0x2ecc71:0xe74c3c);
+    this.add.text(GAME_WIDTH/2-86,by,'다시 하기',{fontSize:'14px',fill:isWin?'#2ecc71':'#e74c3c',fontFamily:'Arial'}).setOrigin(0.5).setDepth(92);
+    r1.on('pointerdown',()=>{ PLAYER_STATS.hp=PLAYER_STATS.maxHp; this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('FieldScene')); });
+    const r2=this.add.rectangle(GAME_WIDTH/2+86,by,152,40,0x0e0e2a).setInteractive({useHandCursor:true}).setDepth(91).setStrokeStyle(2,0x9b59b6);
+    this.add.text(GAME_WIDTH/2+86,by,'스테이지 선택',{fontSize:'14px',fill:'#c39bd3',fontFamily:'Arial'}).setOrigin(0.5).setDepth(92);
+    r2.on('pointerdown',()=>this._exitToSelect());
+  }
+
+  _exitToSelect() {
+    PLAYER_STATS.hp=Math.max(1,this.pl.hp);
+    this.enemyLabels?.forEach(({lbl})=>lbl.destroy());
+    this.cameras.main.fadeOut(250);
+    this.cameras.main.once('camerafadeoutcomplete',()=>{ this.joystick.destroy(); this.scene.start('StageSelectScene'); });
+  }
+
+  // ── 이펙트
+  _drawSwingArc(ox,oy,angle,arc,range) {
+    const g=this.atkArcGfx; g.clear();
+    g.fillStyle(0xf0e6ff,0.2); g.lineStyle(3,0xd4b8ff,0.9);
+    g.beginPath(); g.moveTo(ox,oy);
+    const steps=16;
+    for (let i=0;i<=steps;i++) {
+      const a=angle-arc/2+(arc/steps)*i;
+      g.lineTo(ox+Math.cos(a)*range,oy+Math.sin(a)*range);
+    }
+    g.closePath(); g.fillPath(); g.strokePath();
+    g.lineStyle(2,0xffffff,0.7); g.lineBetween(ox,oy,ox+Math.cos(angle)*range,oy+Math.sin(angle)*range);
+    this.time.delayedCall(150,()=>g.clear());
+  }
+
+  _drawSpinFx(ox,oy,range) {
+    const g=this.atkArcGfx; g.clear();
+    g.fillStyle(0xc39bd3,0.14); g.fillCircle(ox,oy,range);
+    for (let r=range;r>range-40;r-=8) {
+      const a=0.1+(range-r)/40*0.8;
+      g.lineStyle(3,0xd4b8ff,a); g.strokeCircle(ox,oy,r);
+    }
+    for (let i=0;i<8;i++) {
+      const a=Math.PI*2*i/8;
+      g.lineStyle(2,0xffffff,0.5); g.lineBetween(ox,oy,ox+Math.cos(a)*range,oy+Math.sin(a)*range);
+    }
+    this.tweens.add({targets:{t:1},t:0,duration:400,onUpdate:(tw)=>g.setAlpha(tw.getValue()),onComplete:()=>{g.clear();g.setAlpha(1);}});
+  }
+
+  _spawnDmgText(x,y,dmg,isCrit) {
+    const col=isCrit?'#f39c12':'#ff8888', sz=isCrit?'16px':'13px';
+    const tx=x+Phaser.Math.Between(-14,14);
+    const t=this.add.text(tx,y,`${dmg}`,{fontSize:sz,fill:col,fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setDepth(60);
+    this.tweens.add({targets:t,y:y-38,alpha:0,duration:820,ease:'Power2',onComplete:()=>t.destroy()});
+  }
+
+  _spawnPickupText(x,y,msg,col) {
+    const t=this.add.text(x,y,msg,{fontSize:'12px',fill:col,fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setDepth(58);
+    this.tweens.add({targets:t,y:y-32,alpha:0,duration:1100,onComplete:()=>t.destroy()});
+  }
+
+  _showLevelUp() {
+    const t=this.add.text(this.pl.x,this.pl.y-44,'LEVEL UP! 🎉',{
+      fontSize:'18px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:4
+    }).setOrigin(0.5).setDepth(65);
+    this.cameras.main.flash(300,255,220,80);
+    this.tweens.add({targets:t,y:t.y-50,alpha:0,duration:1400,onComplete:()=>t.destroy()});
+  }
+
+  // ── HUD 갱신
+  _refreshGoldHUD() { if (this.goldText) this.goldText.setText(`🪙 ${PLAYER_GOLD}`); }
+  _updateHUD() {
+    const p=this.pl;
+    const ratio=Math.max(0,p.hp/p.maxHp);
+    this.hpBar.setScale(ratio,1);
+    this.hpText.setText(`${p.hp} / ${p.maxHp}`);
+    const aliveNow=this.enemies.filter(e=>e.alive).length;
+    const waveInfo=this.isBoss?'BOSS':
+      `W${this.currentWave||0}/${this.TOTAL_WAVES||5}  ${Math.ceil((this.waveTimer||0)/1000)}s`;
+    this.enemyCounter.setText(`👾 ${aliveNow}  |  ${waveInfo}`);
+    this._refreshGoldHUD();
+    // 스킬 쿨타임
+    const remain=this.skills.spin.cooldown-(this.time.now-this.skills.spin.lastUsed);
+    if (remain>0) {
+      this.skill1CdOverlay.setAlpha(0.7);
+      this.skill1CdText.setText(`${(remain/1000).toFixed(1)}`);
+      this.skill1Bg.setFillStyle(0x100818);
+    } else {
+      this.skill1CdOverlay.setAlpha(0);
+      this.skill1CdText.setText('');
+      this.skill1Bg.setFillStyle(0x180828);
+    }
+  }
+
+  // ── update
+  update(t,delta) {
+    const dt=delta/1000;
+    const p=this.pl;
+    this.joystick.update(this);
+    if (this.done) return;
+
+    if (p.alive) {
+      if (p.autoMode) {
+        // 자동 이동
+        const near=this._nearestAlive();
+        if (near) {
+          const dx=near.x-p.x, dy=near.y-p.y;
+          const dist=Math.sqrt(dx*dx+dy*dy);
+          if (dist>90) { p.x+=dx/dist*p.spd*dt; p.y+=dy/dist*p.spd*dt; }
+          p.facing=Math.atan2(dy,dx);
+        }
+        // 자동 공격
+        this.autoAtkTimer-=delta;
+        if (this.autoAtkTimer<=0) {
+          this.autoAtkTimer=650;
+          const near2=this._nearestAlive();
+          if (near2) { p.facing=Math.atan2(near2.y-p.y,near2.x-p.x); this._swingAttack(p.facing,false); }
+        }
+        // 자동 스킬
+        const nearCount=this.enemies.filter(e=>e.alive&&Math.hypot(e.x-p.x,e.y-p.y)<140).length;
+        if (nearCount>=2) this._trySkill('spin');
+      } else {
+        // 수동 이동
+        let vx=0,vy=0;
+        if (this.wasd.A.isDown||this.cursors.left.isDown)  vx=-p.spd;
+        if (this.wasd.D.isDown||this.cursors.right.isDown) vx= p.spd;
+        if (this.wasd.W.isDown||this.cursors.up.isDown)    vy=-p.spd;
+        if (this.wasd.S.isDown||this.cursors.down.isDown)  vy= p.spd;
+        if (this.joystick.active) { vx=this.joystick.vx*p.spd; vy=this.joystick.vy*p.spd; }
+        if (vx&&vy) { vx*=0.707; vy*=0.707; }
+        p.x+=vx*dt; p.y+=vy*dt;
+        p.facing=Math.atan2(this.input.activePointer.y-p.y,this.input.activePointer.x-p.x);
+      }
+      p.x=Phaser.Math.Clamp(p.x,20,GAME_WIDTH-20);
+      p.y=Phaser.Math.Clamp(p.y,60,GAME_HEIGHT-20);
+      if (p.invincible) { p.invTimer-=delta; if (p.invTimer<=0) p.invincible=false; }
+    }
+
+    // ── 웨이브 타이머
+    if (this.waveActive && !this.done) {
+      this.waveTimer-=delta;
+      if (this.waveTimer<=0) {
+        this.waveActive = false;
+        // 시간 초과 — 남은 적 드롭 없이 사망 처리 후 다음 웨이브/클리어
+        this.enemies.forEach(e=>{ e.alive=false; });
+        this.enemyLabels.forEach(({lbl})=>lbl.setVisible(false));
+        if (this.currentWave >= this.TOTAL_WAVES) {
+          this.time.delayedCall(400, ()=>this._stageClear());
+        } else {
+          const wct=this.add.text(GAME_WIDTH/2,110,'시간 초과! 다음 웨이브',{
+            fontSize:'14px',fill:'#f39c12',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:3
+          }).setOrigin(0.5).setDepth(70).setAlpha(0);
+          this.tweens.add({targets:wct,alpha:1,duration:200,yoyo:true,hold:800,onComplete:()=>wct.destroy()});
+          this.time.delayedCall(2500, ()=>this._startNextWave());
+        }
+      }
+    }
+
+    // ── 이름 텍스트 위치 동기화
+    this.enemyLabels.forEach(({e,lbl})=>{
+      if (!e.alive) { lbl.setVisible(false); return; }
+      lbl.setVisible(true).setPosition(e.x, e.y-e.def.size-13);
+    });
+
+    // ── 적 AI (항상 돌진)
+    this.enemies.forEach(e=>{
+      if (!e.alive) return;
+
+      // 넉백 처리
+      if (Math.abs(e.knockVx)>1||Math.abs(e.knockVy)>1) {
+        e.x+=e.knockVx*dt; e.y+=e.knockVy*dt;
+        e.knockVx*=0.76; e.knockVy*=0.76;
+        e.x=Phaser.Math.Clamp(e.x,20,GAME_WIDTH-20);
+        e.y=Phaser.Math.Clamp(e.y,60,GAME_HEIGHT-20);
+      }
+
+      const dx=p.x-e.x, dy=p.y-e.y;
+      const dist=Math.sqrt(dx*dx+dy*dy)||1;
+
+      // 항상 플레이어 방향으로 돌진 (detRange 무관)
+      // 웨이브 후반부(2웨이브~)는 속도 소폭 증가
+      const waveBoost = Math.min(1 + (this.currentWave-1)*0.12, 1.6);
+      const spd = e.def.spd * waveBoost;
+      e.x += dx/dist * spd * dt;
+      e.y += dy/dist * spd * dt;
+      e.x=Phaser.Math.Clamp(e.x,20,GAME_WIDTH-20);
+      e.y=Phaser.Math.Clamp(e.y,60,GAME_HEIGHT-20);
+
+      e.atkCooldown=Math.max(0,e.atkCooldown-delta);
+      if (dist<=e.def.atkRange+14&&e.atkCooldown<=0) {
+        this._hitPlayer(e.def.atk); e.atkCooldown=e.def.atkCd;
+      }
+    });
+
+    this._renderEnemies();
+    this._renderPlayer();
+    this._updateHUD();
+  }
+
+  _nearestAlive() {
+    let best=null,bd=Infinity;
+    this.enemies.forEach(e=>{ if (!e.alive) return; const d=Math.hypot(e.x-this.pl.x,e.y-this.pl.y); if(d<bd){bd=d;best=e;} });
+    return best;
+  }
+
+  _renderEnemies() {
+    const g=this.enemyGfx; g.clear();
+    this.enemies.forEach(e=>{
+      if (!e.alive) return;
+      const sz=e.def.size;
+      g.fillStyle(0x000000,0.22); g.fillEllipse(e.x+2,e.y+sz*0.7,sz*2.2,sz*0.9);
+      g.fillStyle(e.def.color,1); g.fillCircle(e.x,e.y,sz);
+      g.lineStyle(2,e.def.borderColor,1); g.strokeCircle(e.x,e.y,sz);
+      const bw=sz*2.6;
+      g.fillStyle(0x1a1a1a,0.9); g.fillRect(e.x-bw/2,e.y-sz-12,bw,6);
+      const ratio=e.hp/e.maxHp;
+      g.fillStyle(ratio>0.5?0x2ecc71:ratio>0.25?0xf39c12:0xe74c3c,1); g.fillRect(e.x-bw/2,e.y-sz-12,bw*ratio,6);
+      if (e.def.isBoss) { g.lineStyle(1,0xe74c3c,0.8); g.strokeRect(e.x-bw/2-1,e.y-sz-13,bw+2,8); }
+    });
+  }
+
+  _renderPlayer() {
+    const g=this.playerGfx; g.clear();
+    const p=this.pl; if (!p.alive) return;
+    const blink=p.invincible&&Math.floor(this.time.now/80)%2===0;
+    const alpha=blink?0.25:1;
+    g.fillStyle(0x000000,0.2*alpha); g.fillEllipse(p.x+2,p.y+16,28,10);
+    g.fillStyle(0xd8c8f0,alpha); g.fillCircle(p.x,p.y,15);
+    g.lineStyle(2,0xc39bd3,alpha); g.strokeCircle(p.x,p.y,15);
+    const fx=p.x+Math.cos(p.facing)*24,fy=p.y+Math.sin(p.facing)*24;
+    g.lineStyle(3,0xf0e6ff,alpha*0.9); g.lineBetween(p.x,p.y,fx,fy);
+    if (p.autoMode) { g.lineStyle(1,0x2ecc71,0.5*alpha); g.strokeCircle(p.x,p.y,20); }
   }
 }
 
@@ -855,6 +2252,6 @@ const config = {
   backgroundColor: '#0d0020',
   parent: 'game-container',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, HubScene, BaseScene, FieldScene, CraftScene]
+  scene: [BootScene, TitleScene, HubScene, BaseScene, StageSelectScene, FieldScene, CraftScene]
 };
 const game = new Phaser.Game(config);
