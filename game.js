@@ -26,6 +26,8 @@ const BUILDING_DEFS = {
   warehouse:{ label: '창고',         color: 0x2a4a6a, icon: '📦', baseW: 4, baseH: 2, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: true,  isBossGate: false, isMiner: false, isLumber: false },
   bossgate: { label: '보스 게이트',  color: 0x4a0a0a, icon: '🌀', baseW: 4, baseH: 3, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: false, isBossGate: true,  isMiner: false, isLumber: false },
   pipe:     { label: '파이프',        color: 0x1a3a2a, icon: '🔗', baseW: 1, baseH: 1, resource: '',        rate: 0,  isPipe: true,  isEnergyStorage: false, isWarehouse: false, isBossGate: false, isMiner: false, isLumber: false },
+  workshop: { label: '제작소',        color: 0x1a1a4a, icon: '⚗️', baseW: 4, baseH: 2, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: false, isBossGate: false, isMiner: false, isLumber: false, isWorkshop: true  },
+  smithy:   { label: '대장간',        color: 0x2a1a0a, icon: '⚒️', baseW: 4, baseH: 2, resource: '',        rate: 0,  isPipe: false, isEnergyStorage: false, isWarehouse: false, isBossGate: false, isMiner: false, isLumber: false, isSmithy:   true  },
 };
 
 // 건물 티어 업그레이드 정의
@@ -625,11 +627,22 @@ class HubScene extends Phaser.Scene {
         if ((Math.floor(x/40)+Math.floor((y-50)/40)) % 2 === 0)
           this.add.rectangle(x, y, 40, 40, 0x1e421e).setOrigin(0);
 
-    this.baseZone    = this._createBuilding(160, 280, '🏗️', '기지',      0x1a4a2e, 0x2ecc71, '기지로 이동',       'BaseScene');
-    this.fieldZone   = this._createBuilding(800, 280, '🌲', '필드',      0x4a1a1a, 0xe74c3c, '필드로 이동',       'StageSelectScene');
-    this.craftZone   = this._createBuilding(320, 130, '⚗️', '제작소',    0x1a1a4a, 0x3498db, '제작소로 이동',     'CraftScene');
-    this.smithZone   = this._createBuilding(640, 130, '⚒️', '대장장이',  0x2a1a0a, 0xe67e22, '대장장이로 이동', 'SmithScene');
-    this.storageZone = this._createBuilding(480, 390, '📦', '마을창고',  0x1a3a4a, 0xf1c40f, '[E] 창고 열기',     null);
+    this.baseZone    = this._createBuilding(160, 280, '🏗️', '기지',      0x1a4a2e, 0x2ecc71, '기지로 이동',   'BaseScene');
+    this.fieldZone   = this._createBuilding(800, 280, '🌲', '필드',      0x4a1a1a, 0xe74c3c, '필드로 이동',   'StageSelectScene');
+    this.storageZone = this._createBuilding(480, 390, '📦', '마을창고',  0x1a3a4a, 0xf1c40f, '[E] 창고 열기', null);
+
+    // 제작소/대장간은 기지(BaseScene) 내부에서 건설
+    this.add.rectangle(320, 130, 110, 110, 0x0e0e1a).setOrigin(0.5).setAlpha(0.7);
+    this.add.rectangle(320, 130, 112, 112, 0x222255, 0).setOrigin(0.5).setStrokeStyle(1, 0x333366);
+    this.add.text(320, 105, '⚗️', { fontSize: '28px' }).setOrigin(0.5).setAlpha(0.4);
+    this.add.text(320, 140, '제작소', { fontSize: '13px', fill: '#444477', fontFamily: 'Arial' }).setOrigin(0.5);
+    this.add.text(320, 158, '기지에서 건설', { fontSize: '10px', fill: '#333355', fontFamily: 'Arial' }).setOrigin(0.5);
+
+    this.add.rectangle(640, 130, 110, 110, 0x1a0e0a).setOrigin(0.5).setAlpha(0.7);
+    this.add.rectangle(640, 130, 112, 112, 0x553322, 0).setOrigin(0.5).setStrokeStyle(1, 0x553322);
+    this.add.text(640, 105, '⚒️', { fontSize: '28px' }).setOrigin(0.5).setAlpha(0.4);
+    this.add.text(640, 140, '대장간', { fontSize: '13px', fill: '#775544', fontFamily: 'Arial' }).setOrigin(0.5);
+    this.add.text(640, 158, '기지에서 건설', { fontSize: '10px', fill: '#553322', fontFamily: 'Arial' }).setOrigin(0.5);
 
     this.player    = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, 24, 24, 0xf0e6ff).setDepth(5);
     this.playerDir = this.add.triangle(GAME_WIDTH/2, GAME_HEIGHT/2-16, 0,8, 8,-8, -8,-8, 0xc39bd3).setDepth(6);
@@ -663,6 +676,30 @@ class HubScene extends Phaser.Scene {
     this.keyEsc.on('down', () => { this.storageUI.hide(); this.inventoryUI.hide(); });
 
     this.joystick = new VirtualJoystick(this, 100, GAME_HEIGHT - 90);
+    this._buildMobileButtons();
+  }
+
+  _buildMobileButtons() {
+    const D = 30; // button depth
+    const mkBtn = (x, y, w, h, icon, label, color, cb) => {
+      const bg = this.add.rectangle(x, y, w, h, color, 0.9)
+        .setDepth(D).setStrokeStyle(2, 0xffffff, 0.15).setInteractive({ useHandCursor: true });
+      this.add.text(x, y - 5, icon, { fontSize: '18px' }).setOrigin(0.5).setDepth(D + 1);
+      this.add.text(x, y + 11, label, { fontSize: '9px', fill: '#cccccc', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(D + 1);
+      bg.on('pointerdown', cb);
+      bg.on('pointerover', () => bg.setFillStyle(0x4a4a7a, 0.95));
+      bg.on('pointerout', () => bg.setFillStyle(color, 0.9));
+      return bg;
+    };
+    // 상호작용 (E)
+    mkBtn(GAME_WIDTH - 68, GAME_HEIGHT - 68, 80, 60, '⚡', '상호작용', 0x2a2a5a, () => {
+      if (Phaser.Geom.Rectangle.Contains(this.storageZone, this.player.x, this.player.y)) {
+        this.storageOpen = !this.storageOpen;
+        this.storageOpen ? this.storageUI.show() : this.storageUI.hide();
+      }
+    });
+    // 인벤토리 (I)
+    mkBtn(GAME_WIDTH - 68, GAME_HEIGHT - 138, 80, 60, '🎒', '인벤토리', 0x1a3a1a, () => this.inventoryUI.toggle());
   }
 
   _buildHUD() {
@@ -713,7 +750,7 @@ class HubScene extends Phaser.Scene {
     this.playerDir.setPosition(nx, ny-16).setAngle({ up:0, down:180, left:270, right:90 }[this.facing] || 0);
 
     let nearHint = '';
-    const zones = [ { zone: this.baseZone, scene: 'BaseScene' }, { zone: this.fieldZone, scene: 'StageSelectScene' }, { zone: this.craftZone, scene: 'CraftScene' }, { zone: this.smithZone, scene: 'SmithScene' } ];
+    const zones = [ { zone: this.baseZone, scene: 'BaseScene' }, { zone: this.fieldZone, scene: 'StageSelectScene' } ];
     for (const { zone, scene } of zones) {
       if (Phaser.Geom.Rectangle.Contains(zone, nx, ny)) {
         nearHint = zone.hint;
@@ -865,6 +902,71 @@ class BaseScene extends Phaser.Scene {
 
     this.joystick = new VirtualJoystick(this, 80, 490);
     this.time.addEvent({ delay:1000, loop:true, callback:this._tickProduction, callbackScope:this });
+    this._buildMobileButtons();
+  }
+
+  _buildMobileButtons() {
+    const D = 65;
+    const mkBtn = (x, y, w, h, icon, label, color, cb) => {
+      const bg = this.add.rectangle(x, y, w, h, color, 0.88)
+        .setDepth(D).setStrokeStyle(2, 0xffffff, 0.12).setInteractive({ useHandCursor: true });
+      this.add.text(x, y - 6, icon, { fontSize: '20px' }).setOrigin(0.5).setDepth(D + 1);
+      this.add.text(x, y + 12, label, { fontSize: '9px', fill: '#cccccc', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(D + 1);
+      bg.on('pointerdown', cb);
+      bg.on('pointerover', () => bg.setFillStyle(0x4a4a7a, 0.95));
+      bg.on('pointerout', () => bg.setFillStyle(color, 0.88));
+      return bg;
+    };
+
+    const BW = 76, BH = 56;
+    const RX = GAME_WIDTH - BW / 2 - 4;
+
+    // 상호작용/설치 (E) - 가장 큰 버튼
+    const interactBg = this.add.rectangle(RX, GAME_HEIGHT - 78, BW + 8, BH + 8, 0x1a1a5a, 0.92)
+      .setDepth(D).setStrokeStyle(2, 0x5555ff, 0.5).setInteractive({ useHandCursor: true });
+    this.add.text(RX, GAME_HEIGHT - 84, '⚡', { fontSize: '22px' }).setOrigin(0.5).setDepth(D + 1);
+    this.add.text(RX, GAME_HEIGHT - 61, '상호작용', { fontSize: '9px', fill: '#aaaaff', fontFamily: 'Arial' }).setOrigin(0.5).setDepth(D + 1);
+    interactBg.on('pointerdown', () => {
+      if (this.buildMode) { this._confirmPlace(); }
+      else if (this.nearbyBuilding) {
+        this.nearbyBuilding.type === 'pipe'
+          ? this._openPipePopup(this.nearbyBuilding.id)
+          : this._openPopup(this.nearbyBuilding.id);
+      }
+    });
+    interactBg.on('pointerover', () => interactBg.setFillStyle(0x2a2a8a, 0.95));
+    interactBg.on('pointerout', () => interactBg.setFillStyle(0x1a1a5a, 0.92));
+
+    // 건물 패널 (B)
+    mkBtn(RX - BW - 4, GAME_HEIGHT - 78, BW, BH, '🏗️', '건물', 0x2a1a4a, () => {
+      if (this.buildMode) { this._cancelBuild(); return; }
+      if (!this.popupVisible && !this.inventoryUI.visible)
+        this.buildPanel.visible ? this.buildPanel.setVisible(false) : this.buildPanel.setVisible(true);
+    });
+
+    // 인벤토리 (I)
+    mkBtn(RX, GAME_HEIGHT - 144, BW + 8, BH, '🎒', '인벤토리', 0x1a3a1a, () => {
+      if (this.popupVisible) return;
+      this.inventoryUI.container.setPosition(this.inventoryUI.ox, this.inventoryUI.oy);
+      this.inventoryUI.toggle();
+    });
+
+    // 회전 (R)
+    mkBtn(RX - BW - 4, GAME_HEIGHT - 144, BW, BH, '🔄', '회전(R)', 0x1a3a3a, () => {
+      if (this.buildMode && !BUILDING_DEFS[this.buildType].isPipe) {
+        this.ghostRot = !this.ghostRot;
+        this._updateGhost();
+      }
+    });
+
+    // 취소/뒤로 (ESC)
+    mkBtn(RX - BW - 4, GAME_HEIGHT - 210, BW, BH, '↩️', '취소/뒤로', 0x3a1a1a, () => {
+      if (this.inventoryUI.visible && !this.popupVisible) { this.inventoryUI.hide(); return; }
+      if (this.popupVisible)       { this._closePopup(); return; }
+      if (this.buildMode)          { this._cancelBuild(); return; }
+      if (this.buildPanel.visible) { this.buildPanel.setVisible(false); return; }
+      this.scene.start('HubScene');
+    });
   }
 
   // ─────────────────────────────────────────
@@ -912,7 +1014,7 @@ class BaseScene extends Phaser.Scene {
     this.buildPanel=this.add.container(0,0).setDepth(80).setVisible(false);
     this.buildPanel.add(this.add.rectangle(px,py,pw,ph,0x0a0015,0.97).setOrigin(0).setStrokeStyle(2,0x6c3483));
     this.buildPanel.add(this.add.text(px+pw/2,py+16,'🏗️ 건물 선택 (R:회전)',{fontSize:'13px',fill:'#c39bd3',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5));
-    ['miner','lumber','refinery','estore','warehouse','bossgate','pipe'].forEach((type,i)=>{
+    ['miner','lumber','refinery','estore','warehouse','bossgate','pipe','workshop','smithy'].forEach((type,i)=>{
       const def=BUILDING_DEFS[type],bx=px+16,by=py+44+i*46;
       const btn=this.add.rectangle(bx+128,by+16,250,32,0x1a0a2a).setOrigin(0.5).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x4a2c6a);
       const lbl=this.add.text(bx+10,by+16,`${def.icon} ${def.label} [${def.isPipe?'1×1':def.baseW+'×'+def.baseH}]`,{fontSize:'11px',fill:'#ffffff',fontFamily:'Arial'}).setOrigin(0,0.5);
@@ -1136,6 +1238,9 @@ class BaseScene extends Phaser.Scene {
   _openPopup(id) {
     if (this.buildMode) return;
     const b=this.buildings.find(b=>b.id===id); if (!b) return;
+    // 제작소/대장간은 씬 전환으로 처리
+    if (b.type==='workshop') { this.scene.start('CraftScene'); return; }
+    if (b.type==='smithy')   { this.scene.start('SmithScene'); return; }
     this.activeBuilding=b;
     const def=BUILDING_DEFS[b.type];
 
@@ -2528,8 +2633,8 @@ class CraftScene extends Phaser.Scene {
     this.add.text(GAME_WIDTH/2,26,'⚗️  제작소',{fontSize:'16px',fill:'#3498db',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5);
 
     const backBtn=this.add.rectangle(56,26,90,30,0x1a0a1a).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x4a2c6a);
-    this.add.text(56,26,'← 마을로',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5);
-    backBtn.on('pointerdown',()=>{ this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('HubScene')); });
+    this.add.text(56,26,'← 기지로',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5);
+    backBtn.on('pointerdown',()=>{ this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('BaseScene')); });
 
     this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setStrokeStyle(1,0x888800);
     this.goldText=this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5);
@@ -2560,10 +2665,10 @@ class CraftScene extends Phaser.Scene {
     this.keyEsc.on('down',()=>{
       if (this.inventoryUI.visible){this.inventoryUI.hide();return;}
       this.cameras.main.fadeOut(250);
-      this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('HubScene'));
+      this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('BaseScene'));
     });
 
-    this.hintTxt=this.add.text(GAME_WIDTH/2,GAME_HEIGHT-14,'I: 인벤토리  ESC: 마을로',{fontSize:'10px',fill:'#334433',fontFamily:'Arial'}).setOrigin(0.5).setDepth(5);
+    this.hintTxt=this.add.text(GAME_WIDTH/2,GAME_HEIGHT-14,'I: 인벤토리  ESC: 기지로',{fontSize:'10px',fill:'#334433',fontFamily:'Arial'}).setOrigin(0.5).setDepth(5);
     this._selectCategory('가공');
   }
 
@@ -2577,8 +2682,14 @@ class CraftScene extends Phaser.Scene {
     this._buildRecipeDetail(null);
   }
 
+  _craftEnergyCost(recipe) {
+    return recipe.cat==='판자' ? 3 : 1;
+  }
+
   _canCraft(recipe) {
-    return recipe.inputs.every(inp=>playerInventory.count(inp.id)>=inp.qty);
+    const energyCost = this._craftEnergyCost(recipe);
+    return recipe.inputs.every(inp=>playerInventory.count(inp.id)>=inp.qty)
+      && playerInventory.count('energy_basic') >= energyCost;
   }
 
   _buildRecipeList() {
@@ -2600,7 +2711,7 @@ class CraftScene extends Phaser.Scene {
         .setStrokeStyle(1,isSelected?0x9b59b6:(canCraft?0x2a4a2a:0x2a1a3a)));
       R(this.add.text(LX+10,ry+IH/2,outDef?.icon||'?',{fontSize:'22px'}).setOrigin(0,0.5));
       R(this.add.text(LX+42,ry+12,recipe.label,{fontSize:'12px',fill:canCraft?'#aaffaa':'#cccccc',fontFamily:'Arial'}));
-      R(this.add.text(LX+42,ry+28,recipe.time,{fontSize:'9px',fill:'#446644',fontFamily:'Arial'}));
+      R(this.add.text(LX+42,ry+28,`${recipe.time}  ⚡×${this._craftEnergyCost(recipe)}`,{fontSize:'9px',fill:'#446644',fontFamily:'Arial'}));
 
       bg.on('pointerover',()=>{if(!isSelected) bg.setFillStyle(canCraft?0x142814:0x1a0f28);});
       bg.on('pointerout', ()=>{if(!isSelected) bg.setFillStyle(canCraft?0x0a140a:0x100a18);});
@@ -2639,7 +2750,7 @@ class CraftScene extends Phaser.Scene {
     R(this.add.text(DX+pad+36,DY+62,outDef?.icon||'?',{fontSize:'30px'}).setOrigin(0.5));
     R(this.add.text(DX+pad+82,DY+38,outDef?.label||recipe.id,{fontSize:'16px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}));
     R(this.add.text(DX+pad+82,DY+60,`× ${recipe.out.qty}개`,{fontSize:'12px',fill:'#aaaaaa',fontFamily:'Arial'}));
-    R(this.add.text(DX+pad+82,DY+78,`⏱ ${recipe.time}`,{fontSize:'10px',fill:'#446644',fontFamily:'Arial'}));
+    R(this.add.text(DX+pad+82,DY+78,`⏱ ${recipe.time}  ⚡ 에너지 파편 ×${this._craftEnergyCost(recipe)}`,{fontSize:'10px',fill:'#446644',fontFamily:'Arial'}));
 
     // 재료
     R(this.add.text(DX+pad,DY+110,'필요 재료',{fontSize:'10px',fill:'#555577',fontFamily:'Arial'}));
@@ -2669,7 +2780,13 @@ class CraftScene extends Phaser.Scene {
   }
 
   _doCraft(recipe) {
-    if (!this._canCraft(recipe)){this._showHint('❌ 재료 부족!');return;}
+    if (!this._canCraft(recipe)){
+      const ec=this._craftEnergyCost(recipe);
+      if (playerInventory.count('energy_basic')<ec) this._showHint(`❌ 에너지 파편 ${ec}개 필요!`);
+      else this._showHint('❌ 재료 부족!');
+      return;
+    }
+    playerInventory.consume('energy_basic', this._craftEnergyCost(recipe));
     recipe.inputs.forEach(inp=>playerInventory.consume(inp.id,inp.qty));
     playerInventory.add(recipe.out.id,recipe.out.qty);
     const d=ITEM_DEFS[recipe.out.id];
@@ -2682,7 +2799,7 @@ class CraftScene extends Phaser.Scene {
   _showHint(msg) {
     if (this._hintTimer) this._hintTimer.remove();
     this.hintTxt.setText(msg).setStyle({fill:'#aaffaa'});
-    this._hintTimer=this.time.delayedCall(2500,()=>{this.hintTxt.setText('I: 인벤토리  ESC: 마을로').setStyle({fill:'#334433'});});
+    this._hintTimer=this.time.delayedCall(2500,()=>{this.hintTxt.setText('I: 인벤토리  ESC: 기지로').setStyle({fill:'#334433'});});
   }
 
   update() {
@@ -2713,8 +2830,8 @@ class SmithScene extends Phaser.Scene {
     this.add.text(GAME_WIDTH/2,26,'⚒️  대장장이',{fontSize:'16px',fill:'#e67e22',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5);
 
     const backBtn=this.add.rectangle(56,26,90,30,0x1a1a0a).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x4a3a1a);
-    this.add.text(56,26,'← 마을로',{fontSize:'12px',fill:'#998877',fontFamily:'Arial'}).setOrigin(0.5);
-    backBtn.on('pointerdown',()=>{ this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('HubScene')); });
+    this.add.text(56,26,'← 기지로',{fontSize:'12px',fill:'#998877',fontFamily:'Arial'}).setOrigin(0.5);
+    backBtn.on('pointerdown',()=>{ this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('BaseScene')); });
 
     this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setStrokeStyle(1,0x888800);
     this.goldText=this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5);
@@ -2747,10 +2864,10 @@ class SmithScene extends Phaser.Scene {
     this.keyEsc.on('down',()=>{
       if (this.inventoryUI.visible){this.inventoryUI.hide();return;}
       this.cameras.main.fadeOut(250);
-      this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('HubScene'));
+      this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('BaseScene'));
     });
 
-    this.hintTxt=this.add.text(GAME_WIDTH/2,GAME_HEIGHT-14,'I: 인벤토리  ESC: 마을로',{fontSize:'10px',fill:'#334422',fontFamily:'Arial'}).setOrigin(0.5).setDepth(5);
+    this.hintTxt=this.add.text(GAME_WIDTH/2,GAME_HEIGHT-14,'I: 인벤토리  ESC: 기지로',{fontSize:'10px',fill:'#334422',fontFamily:'Arial'}).setOrigin(0.5).setDepth(5);
 
     this._buildEquipSlots();
     this._selectCategory('티어1');
@@ -2802,7 +2919,8 @@ class SmithScene extends Phaser.Scene {
     this._buildRecipeDetail(null);
   }
 
-  _canCraft(recipe){ return recipe.inputs.every(inp=>playerInventory.count(inp.id)>=inp.qty); }
+  _smithEnergyCost(recipe){ return recipe.cat==='티어2' ? 10 : 5; }
+  _canCraft(recipe){ return recipe.inputs.every(inp=>playerInventory.count(inp.id)>=inp.qty) && playerInventory.count('energy_basic')>=this._smithEnergyCost(recipe); }
 
   _buildRecipeList() {
     this._listObjs.forEach(o=>{try{o.destroy();}catch(e){}});
@@ -2823,7 +2941,7 @@ class SmithScene extends Phaser.Scene {
         .setStrokeStyle(1,isSelected?0xe67e22:(canCraft?0x2a4a1a:0x2a1a0a)));
       R(this.add.text(LX+10,ry+IH/2,outDef?.icon||'?',{fontSize:'20px'}).setOrigin(0,0.5));
       R(this.add.text(LX+40,ry+12,recipe.label,{fontSize:'12px',fill:canCraft?'#cceeaa':'#bbbbaa',fontFamily:'Arial'}));
-      R(this.add.text(LX+40,ry+28,isEquipped?'★ 장착중':'즉시 제작',{fontSize:'9px',fill:isEquipped?'#ffcc44':'#556644',fontFamily:'Arial'}));
+      R(this.add.text(LX+40,ry+28,isEquipped?'★ 장착중':`즉시 제작  ⚡×${this._smithEnergyCost(recipe)}`,{fontSize:'9px',fill:isEquipped?'#ffcc44':'#556644',fontFamily:'Arial'}));
 
       bg.on('pointerover',()=>{if(!isSelected) bg.setFillStyle(canCraft?0x182210:0x18100a);});
       bg.on('pointerout', ()=>{if(!isSelected) bg.setFillStyle(canCraft?0x0e140a:0x100a08);});
@@ -2865,7 +2983,7 @@ class SmithScene extends Phaser.Scene {
     if (outDef?.spd)   statLines.push(`👟 SPD +${outDef.spd}`);
     if (outDef?.maxHp) statLines.push(`❤️ MaxHP +${outDef.maxHp}`);
     R(this.add.text(DX+pad+82,DY+56,statLines.join('  '),{fontSize:'10px',fill:'#88cc88',fontFamily:'Arial'}));
-    R(this.add.text(DX+pad+82,DY+74,'즉시 제작',{fontSize:'9px',fill:'#556644',fontFamily:'Arial'}));
+    R(this.add.text(DX+pad+82,DY+74,`즉시 제작  ⚡ 에너지 파편 ×${this._smithEnergyCost(recipe)}`,{fontSize:'9px',fill:'#556644',fontFamily:'Arial'}));
 
     R(this.add.text(DX+pad,DY+110,'필요 재료',{fontSize:'10px',fill:'#665533',fontFamily:'Arial'}));
     R(this.add.rectangle(DX+pad,DY+122,DW-pad*2,1,0x2a2a1a).setOrigin(0));
@@ -2914,7 +3032,13 @@ class SmithScene extends Phaser.Scene {
   }
 
   _doCraft(recipe) {
-    if (!this._canCraft(recipe)){this._showHint('❌ 재료 부족!');return;}
+    if (!this._canCraft(recipe)){
+      const ec=this._smithEnergyCost(recipe);
+      if (playerInventory.count('energy_basic')<ec) this._showHint(`❌ 에너지 파편 ${ec}개 필요!`);
+      else this._showHint('❌ 재료 부족!');
+      return;
+    }
+    playerInventory.consume('energy_basic', this._smithEnergyCost(recipe));
     recipe.inputs.forEach(inp=>playerInventory.consume(inp.id,inp.qty));
     playerInventory.add(recipe.out.id,recipe.out.qty);
     const d=ITEM_DEFS[recipe.out.id];
@@ -2928,7 +3052,7 @@ class SmithScene extends Phaser.Scene {
   _showHint(msg){
     if(this._hintTimer)this._hintTimer.remove();
     this.hintTxt.setText(msg).setStyle({fill:'#aaffaa'});
-    this._hintTimer=this.time.delayedCall(2500,()=>{this.hintTxt.setText('I: 인벤토리  ESC: 마을로').setStyle({fill:'#334422'});});
+    this._hintTimer=this.time.delayedCall(2500,()=>{this.hintTxt.setText('I: 인벤토리  ESC: 기지로').setStyle({fill:'#334422'});});
   }
 
   update(){ if(this.goldText)this.goldText.setText(`🪙 ${PLAYER_GOLD}`); }
