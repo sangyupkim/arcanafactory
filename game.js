@@ -6,6 +6,11 @@
 const GAME_WIDTH  = 960;
 const GAME_HEIGHT = 540;
 
+// ── FieldScene 전용 확장 필드
+const FIELD_W    = 1440;   // 논리 필드 너비 (카메라 줌으로 더 넓게 보임)
+const FIELD_H    = 810;    // 논리 필드 높이
+const FIELD_ZOOM = 0.72;   // 카메라 줌 (낮을수록 화면에 더 넓게 보임)
+
 const TILE      = 32;
 const GRID_COLS = 20;
 const GRID_ROWS = 15;
@@ -1870,39 +1875,39 @@ if (!window.FIELD_DATA) window.FIELD_DATA = { cleared: new Set() };
 // 각 스테이지 클리어 시 적 한 마리당 1회 롤
 // drops: [ { id, w(가중치), min, max } ]
 const STAGE_DATA = {
-  '1-1':  { world:'어둠의 숲', enemies:['slime'],          count:4,  expReward:8,
+  '1-1':  { world:'어둠의 숲', enemies:['slime'],          count:8,  expReward:8,
     drops:[{id:'energy_basic',w:60,min:1,max:3},{id:'gold',w:30,min:5,max:15}] },
-  '1-2':  { world:'어둠의 숲', enemies:['slime','goblin'],  count:5,  expReward:12,
+  '1-2':  { world:'어둠의 숲', enemies:['slime','goblin'],  count:10, expReward:12,
     drops:[{id:'energy_basic',w:55,min:1,max:4},{id:'gold',w:32,min:8,max:20}] },
-  '1-3':  { world:'어둠의 숲', enemies:['goblin'],          count:5,  expReward:16,
+  '1-3':  { world:'어둠의 숲', enemies:['goblin'],          count:10, expReward:16,
     drops:[{id:'energy_basic',w:50,min:2,max:4},{id:'gold',w:30,min:10,max:25},{id:'energy_mid',w:3,min:1,max:1}] },
-  '1-4':  { world:'어둠의 숲', enemies:['goblin','wolf'],   count:6,  expReward:20,
+  '1-4':  { world:'어둠의 숲', enemies:['goblin','wolf'],   count:12, expReward:20,
     drops:[{id:'energy_basic',w:40,min:2,max:5},{id:'energy_mid',w:12,min:1,max:2},{id:'gold',w:30,min:15,max:30}] },
-  '1-5':  { world:'어둠의 숲', enemies:['wolf'],             count:6,  expReward:26,
+  '1-5':  { world:'어둠의 숲', enemies:['wolf'],             count:12, expReward:26,
     drops:[{id:'energy_basic',w:32,min:2,max:5},{id:'energy_mid',w:22,min:1,max:2},{id:'gold',w:28,min:20,max:40},{id:'core_efficiency',w:12,min:1,max:1},{id:'core_reduce',w:6,min:1,max:1}] },
-  '1-6':  { world:'어둠의 숲', enemies:['wolf','orc'],       count:6,  expReward:30,
+  '1-6':  { world:'어둠의 숲', enemies:['wolf','orc'],       count:12, expReward:30,
     drops:[{id:'energy_basic',w:25,min:2,max:6},{id:'energy_mid',w:28,min:1,max:3},{id:'gold',w:28,min:25,max:50}] },
-  '1-7':  { world:'어둠의 숲', enemies:['orc'],              count:7,  expReward:36,
+  '1-7':  { world:'어둠의 숲', enemies:['orc'],              count:14, expReward:36,
     drops:[{id:'energy_mid',w:45,min:1,max:3},{id:'energy_basic',w:18,min:2,max:5},{id:'gold',w:25,min:30,max:60}] },
-  '1-8':  { world:'어둠의 숲', enemies:['orc','darkelf'],    count:7,  expReward:42,
+  '1-8':  { world:'어둠의 숲', enemies:['orc','darkelf'],    count:14, expReward:42,
     drops:[{id:'energy_mid',w:40,min:2,max:4},{id:'energy_high',w:5,min:1,max:1},{id:'gold',w:28,min:35,max:70}] },
-  '1-9':  { world:'어둠의 숲', enemies:['darkelf'],          count:8,  expReward:48,
+  '1-9':  { world:'어둠의 숲', enemies:['darkelf'],          count:16, expReward:48,
     drops:[{id:'energy_mid',w:35,min:2,max:4},{id:'energy_high',w:10,min:1,max:2},{id:'gold',w:25,min:40,max:80}] },
-  '1-10': { world:'어둠의 숲', enemies:['darkelf','wolf'],   count:9,  expReward:58,
+  '1-10': { world:'어둠의 숲', enemies:['darkelf','wolf'],   count:18, expReward:58,
     drops:[{id:'energy_mid',w:28,min:2,max:5},{id:'energy_high',w:18,min:1,max:2},{id:'gold',w:22,min:50,max:100}] },
   // 보스 — 보스게이트 건물로만 진입
   '1-BOSS':{ world:'어둠의 숲', enemies:['boss_golem'], count:1, expReward:200, isBoss:true,
     drops:[{id:'energy_high',w:35,min:3,max:6},{id:'gate_shard',w:28,min:1,max:2},{id:'upgrade_crystal',w:20,min:1,max:2},{id:'core_efficiency',w:12,min:1,max:1},{id:'core_reduce',w:5,min:1,max:1}] },
   // ══ World 2 — 마법의 숲 (gate_shard 1개 이상 보유 시 해금) ══
-  '2-1': { world:'마법의 숲', enemies:['troll'],                    count:4, expReward:50,
+  '2-1': { world:'마법의 숲', enemies:['troll'],                    count:8,  expReward:50,
     drops:[{id:'energy_mid',w:40,min:2,max:5},{id:'energy_high',w:10,min:1,max:2},{id:'gold',w:35,min:30,max:60},{id:'iron',w:15,min:2,max:5}] },
-  '2-2': { world:'마법의 숲', enemies:['troll','forest_spirit'],    count:5, expReward:65,
+  '2-2': { world:'마법의 숲', enemies:['troll','forest_spirit'],    count:10, expReward:65,
     drops:[{id:'energy_mid',w:35,min:2,max:5},{id:'energy_high',w:15,min:1,max:2},{id:'gold',w:30,min:35,max:70},{id:'ebony',w:20,min:1,max:3}] },
-  '2-3': { world:'마법의 숲', enemies:['forest_spirit','dark_wizard'],count:5, expReward:80,
+  '2-3': { world:'마법의 숲', enemies:['forest_spirit','dark_wizard'],count:10, expReward:80,
     drops:[{id:'energy_high',w:35,min:1,max:3},{id:'energy_mid',w:25,min:2,max:4},{id:'gold',w:25,min:40,max:80},{id:'hard_iron',w:15,min:1,max:2}] },
-  '2-4': { world:'마법의 숲', enemies:['dark_wizard','stone_golem'], count:5, expReward:98,
+  '2-4': { world:'마법의 숲', enemies:['dark_wizard','stone_golem'], count:10, expReward:98,
     drops:[{id:'energy_high',w:40,min:2,max:4},{id:'gold',w:28,min:50,max:100},{id:'tough_ebony',w:20,min:1,max:2},{id:'core_efficiency',w:12,min:1,max:1}] },
-  '2-5': { world:'마법의 숲', enemies:['stone_golem'],               count:6, expReward:120,
+  '2-5': { world:'마법의 숲', enemies:['stone_golem'],               count:12, expReward:120,
     drops:[{id:'energy_high',w:45,min:2,max:5},{id:'gold',w:25,min:60,max:120},{id:'iron_board',w:20,min:1,max:1},{id:'core_reduce',w:10,min:1,max:1}] },
   '2-BOSS':{ world:'마법의 숲', enemies:['boss_witch'], count:1, expReward:450, isBoss:true,
     drops:[{id:'energy_high',w:30,min:5,max:10},{id:'gate_shard',w:25,min:1,max:3},{id:'upgrade_crystal',w:20,min:2,max:3},{id:'diamond',w:15,min:2,max:5},{id:'ancient_oak',w:10,min:2,max:4}] },
@@ -2043,7 +2048,7 @@ class FieldScene extends Phaser.Scene {
 
     const ps=PLAYER_STATS;
     this.pl = {
-      x:GAME_WIDTH/2, y:GAME_HEIGHT/2+30,
+      x:FIELD_W/2, y:FIELD_H/2,
       hp:ps.hp, maxHp:ps.maxHp,
       atk:ps.atk, def:ps.def, spd:ps.spd,
       facing:0, alive:true, invincible:false, invTimer:0,
@@ -2055,18 +2060,26 @@ class FieldScene extends Phaser.Scene {
     this.done         = false;
     this.autoAtkTimer = 0;
 
-    // ── 웨이브 시스템
-    this.currentWave  = 0;     // 현재 웨이브 (0-indexed, 총 5웨이브)
-    this.TOTAL_WAVES  = this.isBoss ? 1 : 5;
-    this.waveTimer    = 0;     // 웨이브 남은 시간(ms)
-    this.WAVE_DURATION= 60000; // 1분
-    this.waveActive   = false;
-    this.totalEnemies = 0;
+    // ── 웨이브 시스템 (60s 안에 5웨이브 몰아치기)
+    this.currentWave   = 0;         // 지금까지 소환된 웨이브 수
+    this.TOTAL_WAVES   = this.isBoss ? 1 : 5;
+    this.BATTLE_DURATION = 60000;   // 전체 전투 시간 60초
+    this.WAVE_INTERVAL   = 12000;   // 12초마다 웨이브 소환
+    this.battleTimer   = this.BATTLE_DURATION;
+    this.nextWaveIn    = 0;         // 즉시 첫 웨이브 소환
+    this.waveActive    = false;
 
     this._buildBg();
     this.enemyGfx  = this.add.graphics().setDepth(20);
     this.atkArcGfx = this.add.graphics().setDepth(35);
     this.playerGfx = this.add.graphics().setDepth(40);
+
+    // ── 카메라 줌아웃 + 플레이어 팔로우
+    this.cameras.main.setZoom(FIELD_ZOOM);
+    this.cameras.main.setBounds(0, 0, FIELD_W, FIELD_H);
+    this.camTarget = this.add.rectangle(this.pl.x, this.pl.y, 2, 2, 0, 0).setDepth(0);
+    this.cameras.main.startFollow(this.camTarget, true, 0.10, 0.10);
+
     this._buildHUD();
 
     // ── 입력
@@ -2075,10 +2088,10 @@ class FieldScene extends Phaser.Scene {
     this.key1    = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
     this.keyEsc  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
-    // 마우스/터치 클릭 → 기본 공격
+    // 마우스/터치 클릭 → 기본 공격 (worldX/Y 사용 — 카메라 줌 대응)
     this.input.on('pointerdown',(ptr)=>{
       if (!this.pl.autoMode && this.pl.alive && !this.done) {
-        const angle=Math.atan2(ptr.y-this.pl.y, ptr.x-this.pl.x);
+        const angle=Math.atan2(ptr.worldY-this.pl.y, ptr.worldX-this.pl.x);
         this.pl.facing=angle;
         this._swingAttack(angle, false);
       }
@@ -2087,113 +2100,115 @@ class FieldScene extends Phaser.Scene {
     this.keyEsc.on('down', ()=>this._exitToSelect());
 
     this.joystick = new VirtualJoystick(this, 80, GAME_HEIGHT-70);
+    // 조이스틱을 화면 고정으로
+    this.joystick.base.setScrollFactor(0).setDepth(85);
+    this.joystick.stick.setScrollFactor(0).setDepth(86);
     this._buildMobileButtons();
     this._showStageTitle();
-    // 스테이지 타이틀 후 첫 웨이브 시작
-    this.time.delayedCall(1600, ()=>this._startNextWave());
+    // 스테이지 타이틀 후 웨이브 타이머 시작
+    this.time.delayedCall(1600, ()=>{ this.waveActive = true; });
   }
 
   // ── 배경
   _buildBg() {
-    this.add.rectangle(0,0,GAME_WIDTH,GAME_HEIGHT,0x080e08).setOrigin(0).setDepth(0);
+    this.add.rectangle(0,0,FIELD_W,FIELD_H,0x080e08).setOrigin(0).setDepth(0);
     const g=this.add.graphics().setDepth(0);
     g.lineStyle(1,0x0d190d,1);
-    for (let x=0;x<GAME_WIDTH;x+=48)   g.lineBetween(x,52,x,GAME_HEIGHT);
-    for (let y=52;y<GAME_HEIGHT;y+=48) g.lineBetween(0,y,GAME_WIDTH,y);
-    for (let i=0;i<22;i++) {
-      const rx=((i*97+13)%GAME_WIDTH+GAME_WIDTH)%GAME_WIDTH;
-      const ry=52+(((i*53+7)%(GAME_HEIGHT-52))+GAME_HEIGHT-52)%(GAME_HEIGHT-52);
-      g.fillStyle(0x0a180a,1); g.fillCircle(rx,ry,Phaser.Math.Between(5,15));
+    for (let x=0;x<FIELD_W;x+=48) g.lineBetween(x,0,x,FIELD_H);
+    for (let y=0;y<FIELD_H;y+=48) g.lineBetween(0,y,FIELD_W,y);
+    // 장식용 덤불/바위
+    for (let i=0;i<40;i++) {
+      const rx=((i*97+13)%FIELD_W+FIELD_W)%FIELD_W;
+      const ry=((i*53+7)%(FIELD_H)+FIELD_H)%FIELD_H;
+      g.fillStyle(0x0a180a,1); g.fillCircle(rx,ry,Phaser.Math.Between(6,20));
     }
+    // 필드 경계 표시
+    g.lineStyle(3,0x1a3a1a,0.8);
+    g.strokeRect(10,10,FIELD_W-20,FIELD_H-20);
   }
 
   // ── HUD
   _buildHUD() {
-    this.add.rectangle(0,0,GAME_WIDTH,52,0x08000f,0.96).setOrigin(0).setDepth(80);
-    this.add.rectangle(0,51,GAME_WIDTH,2,0xe74c3c).setOrigin(0).setDepth(80);
+    const sf = (o) => o.setScrollFactor(0); // 화면 고정 헬퍼
 
-    const backBtn=this.add.rectangle(52,26,90,30,0x180a18).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x4a2c6a);
-    this.add.text(52,26,'← 나가기',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82);
+    sf(this.add.rectangle(0,0,GAME_WIDTH,52,0x08000f,0.96).setOrigin(0).setDepth(80));
+    sf(this.add.rectangle(0,51,GAME_WIDTH,2,0xe74c3c).setOrigin(0).setDepth(80));
+
+    const backBtn=sf(this.add.rectangle(52,26,90,30,0x180a18).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x4a2c6a));
+    sf(this.add.text(52,26,'← 나가기',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
     backBtn.on('pointerdown',()=>this._exitToSelect());
 
-    this.add.text(GAME_WIDTH/2,15,`스테이지  ${this.stageId}`,{fontSize:'14px',fill:'#e87070',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(81);
-    this.add.text(GAME_WIDTH/2,34,this.stageDef.world,{fontSize:'10px',fill:'#3a5a3a',fontFamily:'Arial'}).setOrigin(0.5).setDepth(81);
+    sf(this.add.text(GAME_WIDTH/2,15,`스테이지  ${this.stageId}`,{fontSize:'14px',fill:'#e87070',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(81));
+    sf(this.add.text(GAME_WIDTH/2,34,this.stageDef.world,{fontSize:'10px',fill:'#3a5a3a',fontFamily:'Arial'}).setOrigin(0.5).setDepth(81));
 
-    this.add.text(113,18,'HP',{fontSize:'11px',fill:'#887788',fontFamily:'Arial'}).setOrigin(1,0.5).setDepth(81);
-    this.hpBarBg=this.add.rectangle(116,18,180,12,0x2a0e0e).setOrigin(0,0.5).setDepth(81);
-    this.hpBar  =this.add.rectangle(116,18,180,12,0xe74c3c).setOrigin(0,0.5).setDepth(82);
-    this.hpText =this.add.text(300,18,'',{fontSize:'10px',fill:'#ccaaaa',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(83);
+    sf(this.add.text(113,18,'HP',{fontSize:'11px',fill:'#887788',fontFamily:'Arial'}).setOrigin(1,0.5).setDepth(81));
+    this.hpBarBg=sf(this.add.rectangle(116,18,180,12,0x2a0e0e).setOrigin(0,0.5).setDepth(81));
+    this.hpBar  =sf(this.add.rectangle(116,18,180,12,0xe74c3c).setOrigin(0,0.5).setDepth(82));
+    this.hpText =sf(this.add.text(300,18,'',{fontSize:'10px',fill:'#ccaaaa',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(83));
 
-    this.autoBtn=this.add.rectangle(GAME_WIDTH-110,26,100,28,0x0e1828).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x3498db);
-    this.autoBtnLbl=this.add.text(GAME_WIDTH-110,26,'수동 모드',{fontSize:'11px',fill:'#4a8ab8',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82);
+    this.autoBtn=sf(this.add.rectangle(GAME_WIDTH-110,26,100,28,0x0e1828).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x3498db));
+    this.autoBtnLbl=sf(this.add.text(GAME_WIDTH-110,26,'수동 모드',{fontSize:'11px',fill:'#4a8ab8',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
     this.autoBtn.on('pointerdown',()=>this._toggleAuto());
 
-    this.enemyCounter=this.add.text(GAME_WIDTH/2-140,36,'',{fontSize:'11px',fill:'#f1c40f',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(81);
-    this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(82).setStrokeStyle(1,0x888800);
-    this.goldText=this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(83);
+    this.enemyCounter=sf(this.add.text(GAME_WIDTH/2-140,36,'',{fontSize:'11px',fill:'#f1c40f',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(81));
+    sf(this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(82).setStrokeStyle(1,0x888800));
+    this.goldText=sf(this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(83));
 
-    // ── 스킬 바 (하단)
+    // ── 스킬 바 (하단, 화면 고정)
     const barY=GAME_HEIGHT-28;
-    // 기본공격
-    this.add.rectangle(GAME_WIDTH/2-80,barY,54,40,0x180820).setDepth(81).setStrokeStyle(2,0x6c3483);
-    this.add.text(GAME_WIDTH/2-80,barY-6,'⚔️',{fontSize:'16px'}).setOrigin(0.5).setDepth(82);
-    this.add.text(GAME_WIDTH/2-80,barY+10,'클릭',{fontSize:'9px',fill:'#665566',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82);
-    // 스킬1
-    this.skill1Bg=this.add.rectangle(GAME_WIDTH/2,barY,54,40,0x180828).setDepth(81).setStrokeStyle(2,0x9b59b6);
-    this.add.text(GAME_WIDTH/2,barY-6,'🌀',{fontSize:'16px'}).setOrigin(0.5).setDepth(82);
-    this.add.text(GAME_WIDTH/2,barY+10,'[1] 선풍참',{fontSize:'8px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82);
-    this.skill1CdOverlay=this.add.rectangle(GAME_WIDTH/2,barY,54,40,0x000000,0).setDepth(83);
-    this.skill1CdText=this.add.text(GAME_WIDTH/2,barY,'',{fontSize:'12px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(84);
+    sf(this.add.rectangle(GAME_WIDTH/2-80,barY,54,40,0x180820).setDepth(81).setStrokeStyle(2,0x6c3483));
+    sf(this.add.text(GAME_WIDTH/2-80,barY-6,'⚔️',{fontSize:'16px'}).setOrigin(0.5).setDepth(82));
+    sf(this.add.text(GAME_WIDTH/2-80,barY+10,'클릭',{fontSize:'9px',fill:'#665566',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
+    this.skill1Bg=sf(this.add.rectangle(GAME_WIDTH/2,barY,54,40,0x180828).setDepth(81).setStrokeStyle(2,0x9b59b6));
+    sf(this.add.text(GAME_WIDTH/2,barY-6,'🌀',{fontSize:'16px'}).setOrigin(0.5).setDepth(82));
+    sf(this.add.text(GAME_WIDTH/2,barY+10,'[1] 선풍참',{fontSize:'8px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
+    this.skill1CdOverlay=sf(this.add.rectangle(GAME_WIDTH/2,barY,54,40,0x000000,0).setDepth(83));
+    this.skill1CdText=sf(this.add.text(GAME_WIDTH/2,barY,'',{fontSize:'12px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(84));
   }
 
   _buildMobileButtons() {
-    const atkBtn=this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-80,34,0x3a1a4a,0.8).setDepth(81).setInteractive({useHandCursor:true});
+    const sf = (o) => o.setScrollFactor(0);
+    const atkBtn=sf(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-80,34,0x3a1a4a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
     atkBtn.setStrokeStyle(2,0x9b59b6);
-    this.add.text(GAME_WIDTH-80,GAME_HEIGHT-80,'⚔️',{fontSize:'22px'}).setOrigin(0.5).setDepth(82);
+    sf(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-80,'⚔️',{fontSize:'22px'}).setOrigin(0.5).setDepth(82));
     atkBtn.on('pointerdown',()=>{ if (!this.pl.autoMode && this.pl.alive && !this.done) this._swingAttack(this.pl.facing,false); });
 
-    const sk1Btn=this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x2a1a3a,0.8).setDepth(81).setInteractive({useHandCursor:true});
+    const sk1Btn=sf(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x2a1a3a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
     sk1Btn.setStrokeStyle(2,0x6c3483);
-    this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'🌀',{fontSize:'18px'}).setOrigin(0.5).setDepth(82);
+    sf(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'🌀',{fontSize:'18px'}).setOrigin(0.5).setDepth(82));
     sk1Btn.on('pointerdown',()=>this._trySkill('spin'));
   }
 
   _startNextWave() {
-    if (this.done) return;
+    if (this.done || this.currentWave >= this.TOTAL_WAVES) return;
     this.currentWave++;
-    if (this.currentWave > this.TOTAL_WAVES) return;
 
     const sd=this.stageDef;
-    // 웨이브마다 몬스터 수 증가 (보스는 고정)
-    const baseCount = this.isBoss ? sd.count : Math.floor(sd.count*(1+this.currentWave*0.5));
-    this.waveTimer = this.WAVE_DURATION;
-    this.waveActive = true;
-    this.totalEnemies = (this.totalEnemies||0) + baseCount;
+    // 웨이브마다 몬스터 수 증가 (보스 고정)
+    const spawnCount = this.isBoss ? sd.count : sd.count + (this.currentWave - 1) * 2;
 
-    // 웨이브 알림
-    const wt=this.add.text(GAME_WIDTH/2,90,this.isBoss?'💀 보스 등장!':
-      `웨이브 ${this.currentWave} / ${this.TOTAL_WAVES}`,{
-      fontSize:'20px',fill:this.isBoss?'#e74c3c':'#f1c40f',fontFamily:'Arial',fontStyle:'bold',
-      stroke:'#000000',strokeThickness:4
-    }).setOrigin(0.5).setDepth(70).setAlpha(0);
-    this.tweens.add({targets:wt,alpha:1,duration:300,yoyo:true,hold:800,onComplete:()=>wt.destroy()});
+    // 웨이브 알림 (화면 고정)
+    const wt=this.add.text(GAME_WIDTH/2, 80,
+      this.isBoss ? '💀 보스 등장!' : `웨이브 ${this.currentWave} / ${this.TOTAL_WAVES}  🌊`, {
+      fontSize:'22px', fill:this.isBoss?'#e74c3c':'#f1c40f',
+      fontFamily:'Arial', fontStyle:'bold', stroke:'#000000', strokeThickness:4
+    }).setOrigin(0.5).setDepth(90).setScrollFactor(0).setAlpha(0);
+    this.tweens.add({targets:wt, alpha:1, duration:250, yoyo:true, hold:700, onComplete:()=>wt.destroy()});
 
-    // 몬스터 스폰
-    for (let i=0;i<baseCount;i++) {
+    // 몬스터 스폰 — 플레이어 주변에 원형 배치, 더 넓은 거리
+    for (let i=0; i<spawnCount; i++) {
       const type=sd.enemies[i%sd.enemies.length];
       const def=ENEMY_DEFS[type];
-      const angle=Math.PI*2*i/baseCount+Phaser.Math.FloatBetween(-0.2,0.2);
-      const dist=this.isBoss?300:Phaser.Math.FloatBetween(260,400);
-      const ex=Phaser.Math.Clamp(this.pl.x+Math.cos(angle)*dist,30,GAME_WIDTH-30);
-      const ey=Phaser.Math.Clamp(this.pl.y+Math.sin(angle)*dist,60,GAME_HEIGHT-30);
+      const angle=Math.PI*2*i/spawnCount + Phaser.Math.FloatBetween(-0.3,0.3);
+      const dist=this.isBoss ? 350 : Phaser.Math.FloatBetween(380, 560);
+      const ex=Phaser.Math.Clamp(this.pl.x+Math.cos(angle)*dist, 30, FIELD_W-30);
+      const ey=Phaser.Math.Clamp(this.pl.y+Math.sin(angle)*dist, 30, FIELD_H-30);
       const e={ type,def,x:ex,y:ey,hp:def.hp,maxHp:def.hp,alive:true,knockVx:0,knockVy:0,atkCooldown:0 };
       this.enemies.push(e);
-      // 이름 텍스트 생성
-      // 몬스터 이름 색상 (보스=빨강, 엘리트=주황, 일반=흰색)
-      const lblColor = def.isBoss?'#ff4444':def.size>=18?'#ffaa44':'#ffffff';
-      const lbl=this.add.text(ex,ey-def.size-14,def.label,{
-        fontSize:'10px',fill:lblColor,fontFamily:'Arial',fontStyle:def.isBoss?'bold':'normal',
-        stroke:'#000000',strokeThickness:3
+      const lblColor=def.isBoss?'#ff4444':def.size>=18?'#ffaa44':'#ffffff';
+      const lbl=this.add.text(ex, ey-def.size-14, def.label, {
+        fontSize:'10px', fill:lblColor, fontFamily:'Arial', fontStyle:def.isBoss?'bold':'normal',
+        stroke:'#000000', strokeThickness:3
       }).setOrigin(0.5).setDepth(22);
       this.enemyLabels.push({e,lbl});
     }
@@ -2206,11 +2221,11 @@ class FieldScene extends Phaser.Scene {
   _showStageTitle() {
     const t1=this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-24,`스테이지  ${this.stageId}`,{
       fontSize:'30px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold',stroke:'#000000',strokeThickness:5
-    }).setOrigin(0.5).setDepth(100).setAlpha(0);
+    }).setOrigin(0.5).setDepth(100).setScrollFactor(0).setAlpha(0);
     const sub=this.isBoss?'💀  BOSS  STAGE':this.stageDef.enemies.map(e=>ENEMY_DEFS[e]?.label||e).join(' · ');
     const t2=this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+14,sub,{
       fontSize:'14px',fill:this.isBoss?'#e87070':'#888888',fontFamily:'Arial',stroke:'#000000',strokeThickness:3
-    }).setOrigin(0.5).setDepth(100).setAlpha(0);
+    }).setOrigin(0.5).setDepth(100).setScrollFactor(0).setAlpha(0);
     this.tweens.add({targets:[t1,t2],alpha:1,duration:350,yoyo:true,hold:1000,onComplete:()=>{t1.destroy();t2.destroy();}});
   }
 
@@ -2320,18 +2335,9 @@ class FieldScene extends Phaser.Scene {
       this._showLevelUp();
     }
 
-    if (this.enemies.every(e=>!e.alive) && !this.done) {
-      if (this.currentWave >= this.TOTAL_WAVES) {
-        this.time.delayedCall(500,()=>this._stageClear());
-      } else {
-        // 다음 웨이브 시작 (3초 대기)
-        this.waveActive=false;
-        const wct=this.add.text(GAME_WIDTH/2,110,'웨이브 클리어!',{
-          fontSize:'16px',fill:'#2ecc71',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:3
-        }).setOrigin(0.5).setDepth(70).setAlpha(0);
-        this.tweens.add({targets:wct,alpha:1,duration:250,yoyo:true,hold:600,onComplete:()=>wct.destroy()});
-        this.time.delayedCall(3000,()=>this._startNextWave());
-      }
+    // 모든 웨이브 소환 완료 + 모든 적 처치 → 클리어
+    if (this.currentWave >= this.TOTAL_WAVES && this.enemies.every(e=>!e.alive) && !this.done) {
+      this.time.delayedCall(400, ()=>this._stageClear());
     }
   }
 
@@ -2342,25 +2348,24 @@ class FieldScene extends Phaser.Scene {
     FIELD_DATA.cleared.add(this.stageId);
     PLAYER_STATS.hp=this.pl.hp;
 
-    this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.65).setDepth(90);
+    this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.65).setDepth(90).setScrollFactor(0);
     this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-80,'✨  STAGE  CLEAR!',{
       fontSize:'34px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:5
-    }).setOrigin(0.5).setDepth(91);
+    }).setOrigin(0.5).setDepth(91).setScrollFactor(0);
     this.cameras.main.flash(400,255,220,60);
 
     PLAYER_STATS.exp+=this.stageDef.expReward;
-    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-44,`EXP  +${this.stageDef.expReward}`,{fontSize:'16px',fill:'#2ecc71',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91);
-    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-22,`Lv.${PLAYER_STATS.level}  HP:${this.pl.hp}/${this.pl.maxHp}`,{fontSize:'13px',fill:'#8888aa',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91);
+    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-44,`EXP  +${this.stageDef.expReward}`,{fontSize:'16px',fill:'#2ecc71',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
+    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-22,`Lv.${PLAYER_STATS.level}  HP:${this.pl.hp}/${this.pl.maxHp}`,{fontSize:'13px',fill:'#8888aa',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
 
-    // 보스 특별 드롭 표시
     if (this.isBoss) {
-      this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+2,'🏆  골렘 수호자 처치!',{fontSize:'15px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91);
+      this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+2,'🏆  골렘 수호자 처치!',{fontSize:'15px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
       if (this.stageDef.drops?.length) {
         const drop=rollOnce(this.stageDef.drops);
         if (drop.id==='gold') { PLAYER_GOLD+=drop.qty; } else { playerInventory.add(drop.id,drop.qty); }
         const di=ITEM_DEFS[drop.id];
         const col=di?('#'+di.color.toString(16).padStart(6,'0')):'#ffffff';
-        this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+22,`${di?.icon||''}  ${di?.label||drop.id}  ×${drop.qty}  획득!`,{fontSize:'14px',fill:col,fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91);
+        this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+22,`${di?.icon||''}  ${di?.label||drop.id}  ×${drop.qty}  획득!`,{fontSize:'14px',fill:col,fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
       }
     }
 
@@ -2370,11 +2375,11 @@ class FieldScene extends Phaser.Scene {
   _gameOver() {
     if (this.done) return;
     this.done=true; PLAYER_STATS.hp=Math.max(1,this.pl.hp);
-    this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.75).setDepth(90);
+    this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.75).setDepth(90).setScrollFactor(0);
     this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-60,'💀  GAME  OVER',{
       fontSize:'34px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:5
-    }).setOrigin(0.5).setDepth(91);
-    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-20,`스테이지  ${this.stageId}  실패`,{fontSize:'14px',fill:'#888888',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91);
+    }).setOrigin(0.5).setDepth(91).setScrollFactor(0);
+    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-20,`스테이지  ${this.stageId}  실패`,{fontSize:'14px',fill:'#888888',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
     this.cameras.main.shake(300,0.012);
     this._addResultButtons(false);
   }
@@ -2453,8 +2458,9 @@ class FieldScene extends Phaser.Scene {
     this.hpBar.setScale(ratio,1);
     this.hpText.setText(`${p.hp} / ${p.maxHp}`);
     const aliveNow=this.enemies.filter(e=>e.alive).length;
+    const timeLeft=Math.max(0, Math.ceil((this.battleTimer||0)/1000));
     const waveInfo=this.isBoss?'BOSS':
-      `W${this.currentWave||0}/${this.TOTAL_WAVES||5}  ${Math.ceil((this.waveTimer||0)/1000)}s`;
+      `W${this.currentWave||0}/${this.TOTAL_WAVES||5}  ⏱${timeLeft}s`;
     this.enemyCounter.setText(`👾 ${aliveNow}  |  ${waveInfo}`);
     this._refreshGoldHUD();
     // 스킬 쿨타임
@@ -2507,32 +2513,35 @@ class FieldScene extends Phaser.Scene {
         if (this.joystick.active) { vx=this.joystick.vx*p.spd; vy=this.joystick.vy*p.spd; }
         if (vx&&vy) { vx*=0.707; vy*=0.707; }
         p.x+=vx*dt; p.y+=vy*dt;
-        p.facing=Math.atan2(this.input.activePointer.y-p.y,this.input.activePointer.x-p.x);
+        p.facing=Math.atan2(this.input.activePointer.worldY-p.y,this.input.activePointer.worldX-p.x);
       }
-      p.x=Phaser.Math.Clamp(p.x,20,GAME_WIDTH-20);
-      p.y=Phaser.Math.Clamp(p.y,60,GAME_HEIGHT-20);
+      p.x=Phaser.Math.Clamp(p.x, 20, FIELD_W-20);
+      p.y=Phaser.Math.Clamp(p.y, 30, FIELD_H-20);
       if (p.invincible) { p.invTimer-=delta; if (p.invTimer<=0) p.invincible=false; }
     }
 
-    // ── 웨이브 타이머
+    // ── 전투 타이머 (60초 카운트다운, 12초마다 웨이브 소환)
     if (this.waveActive && !this.done) {
-      this.waveTimer-=delta;
-      if (this.waveTimer<=0) {
+      this.battleTimer -= delta;
+      this.nextWaveIn  -= delta;
+
+      // 다음 웨이브 소환 타이밍
+      if (this.nextWaveIn <= 0 && this.currentWave < this.TOTAL_WAVES) {
+        this._startNextWave();
+        this.nextWaveIn = this.WAVE_INTERVAL;
+      }
+
+      // 60초 경과 → 스테이지 클리어
+      if (this.battleTimer <= 0 && !this.done) {
         this.waveActive = false;
-        // 시간 초과 — 남은 적 드롭 없이 사망 처리 후 다음 웨이브/클리어
         this.enemies.forEach(e=>{ e.alive=false; });
         this.enemyLabels.forEach(({lbl})=>lbl.setVisible(false));
-        if (this.currentWave >= this.TOTAL_WAVES) {
-          this.time.delayedCall(400, ()=>this._stageClear());
-        } else {
-          const wct=this.add.text(GAME_WIDTH/2,110,'시간 초과! 다음 웨이브',{
-            fontSize:'14px',fill:'#f39c12',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:3
-          }).setOrigin(0.5).setDepth(70).setAlpha(0);
-          this.tweens.add({targets:wct,alpha:1,duration:200,yoyo:true,hold:800,onComplete:()=>wct.destroy()});
-          this.time.delayedCall(2500, ()=>this._startNextWave());
-        }
+        this.time.delayedCall(400, ()=>this._stageClear());
       }
     }
+
+    // camTarget 동기화 (카메라 팔로우용)
+    if (this.camTarget) this.camTarget.setPosition(this.pl.x, this.pl.y);
 
     // ── 이름 텍스트 위치 동기화
     this.enemyLabels.forEach(({e,lbl})=>{
@@ -2561,8 +2570,8 @@ class FieldScene extends Phaser.Scene {
       const spd = e.def.spd * waveBoost;
       e.x += dx/dist * spd * dt;
       e.y += dy/dist * spd * dt;
-      e.x=Phaser.Math.Clamp(e.x,20,GAME_WIDTH-20);
-      e.y=Phaser.Math.Clamp(e.y,60,GAME_HEIGHT-20);
+      e.x=Phaser.Math.Clamp(e.x, 20, FIELD_W-20);
+      e.y=Phaser.Math.Clamp(e.y, 30, FIELD_H-20);
 
       e.atkCooldown=Math.max(0,e.atkCooldown-delta);
       if (dist<=e.def.atkRange+14&&e.atkCooldown<=0) {
