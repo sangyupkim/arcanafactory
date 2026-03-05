@@ -436,25 +436,26 @@ class InventoryUI {
       c.add([iconTxt, cntTxt, nameTxt]); this.slotTexts.push({ icon: iconTxt, count: cntTxt, name: nameTxt });
     }
 
-    // 씬 단위 드래그 앤 드롭 이벤트 등록 (최초 1회)
-    if (!scene._dragSetupDone) {
+    // 씬 단위 드래그 앤 드롭 이벤트 등록 (씬 재시작마다 재등록)
+    scene.input.off('dragstart').off('drag').off('dragend').off('drop');
+    {
       scene.input.on('dragstart', (pointer, gameObject) => {
-        if (!gameObject.inv || !gameObject.inv.slots[gameObject.slotIdx].itemId) return;
+        if (!gameObject.inv || !gameObject.inv.slots[gameObject.slotIdx]?.itemId) return;
         gameObject.setDepth(1000).setAlpha(0.8);
         gameObject.ox = gameObject.x; gameObject.oy = gameObject.y;
       });
       scene.input.on('drag', (pointer, gameObject, dragX, dragY) => {
-        if (!gameObject.inv || !gameObject.inv.slots[gameObject.slotIdx].itemId) return;
+        if (!gameObject.inv || !gameObject.inv.slots[gameObject.slotIdx]?.itemId) return;
         gameObject.x = dragX; gameObject.y = dragY;
       });
       scene.input.on('dragend', (pointer, gameObject) => {
         if (!gameObject.inv) return;
         gameObject.setDepth(0).setAlpha(1);
-        gameObject.x = gameObject.ox; gameObject.y = gameObject.oy; // 제자리 복귀
+        gameObject.x = gameObject.ox; gameObject.y = gameObject.oy;
       });
       scene.input.on('drop', (pointer, gameObject, dropZone) => {
         if (!gameObject.inv || !dropZone.inv) return;
-        if (!gameObject.inv.slots[gameObject.slotIdx].itemId) return;
+        if (!gameObject.inv.slots[gameObject.slotIdx]?.itemId) return;
 
         const srcCnt = gameObject.inv.slots[gameObject.slotIdx].count;
         const amt = GLOBAL_SPLIT_MODE === 'HALF' ? Math.ceil(srcCnt/2) : (GLOBAL_SPLIT_MODE === 'ONE' ? 1 : srcCnt);
@@ -467,9 +468,9 @@ class InventoryUI {
         gameObject.inv.move(gameObject.slotIdx, dropZone.inv, dropZone.slotIdx, amt);
 
         // 화면의 모든 UI 갱신
-        if(scene.inventoryUI) scene.inventoryUI.refresh();
-        if(scene.storageUI)   scene.storageUI.refresh();
-        if(scene._refreshPopupSlots) scene._refreshPopupSlots();
+        if (scene.inventoryUI)        scene.inventoryUI.refresh();
+        if (scene.storageUI)          scene.storageUI.refresh();
+        if (scene._refreshPopupSlots) scene._refreshPopupSlots();
       });
       scene._dragSetupDone = true;
     }
@@ -1146,7 +1147,11 @@ class BaseScene extends Phaser.Scene {
         this.popupContainer.add(bg); this.popupChildren.push(bg); this.popupSlotGfx.push(bg);
 
         const ico=this.add.text(sx+SLOT/2,sy+SLOT/2-3,'',{fontSize:'18px',fontFamily:'Arial'}).setOrigin(0.5);
-        ico.setInteractive({draggable:true});
+        ico.setInteractive({
+          draggable: true, useHandCursor: true,
+          hitArea: new Phaser.Geom.Rectangle(-21, -21, 42, 42),
+          hitAreaCallback: Phaser.Geom.Rectangle.Contains
+        });
         ico.inv=b.storage; ico.slotIdx=i;
         const cnt=this.add.text(sx+SLOT-2,sy+SLOT-2,'',{fontSize:'9px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,1);
         this.popupContainer.add(ico); this.popupChildren.push(ico);
@@ -1697,7 +1702,10 @@ class BaseScene extends Phaser.Scene {
       const nc=bld.col+dc, nr=bld.row+dr;
       if (nc<0||nr<0||nc>=GRID_COLS||nr>=GRID_ROWS) continue;
       const cell=this.grid[nc][nr];
-      if (cell&&BUILDING_DEFS[cell.type]?.isPipe) starts.add(`${nc},${nr}`);
+      if (cell&&BUILDING_DEFS[cell.type]?.isPipe) {
+        const pp=this.pipes.find(p=>p.col===nc&&p.row===nr);
+        if (!pp?.paused) starts.add(`${nc},${nr}`);
+      }
     }
     if (starts.size===0) return null;
 
@@ -1726,7 +1734,10 @@ class BaseScene extends Phaser.Scene {
       const nc=bld.col+dc, nr=bld.row+dr;
       if (nc<0||nr<0||nc>=GRID_COLS||nr>=GRID_ROWS) continue;
       const cell=this.grid[nc][nr];
-      if (cell&&BUILDING_DEFS[cell.type]?.isPipe) starts.add(`${nc},${nr}`);
+      if (cell&&BUILDING_DEFS[cell.type]?.isPipe) {
+        const pp=this.pipes.find(p=>p.col===nc&&p.row===nr);
+        if (!pp?.paused) starts.add(`${nc},${nr}`);
+      }
     }
     if (starts.size===0) return null;
     const visited=new Set(), queue=[...starts];
@@ -2706,9 +2717,34 @@ class CraftScene extends Phaser.Scene {
     return recipe.cat==='판자' ? 3 : 1;
   }
 
+  // 인벤토리 + 기지 창고 합산 아이템 수
+  _countTotal(itemId) {
+    let n = playerInventory.count(itemId);
+    (BASE_DATA.buildings||[]).forEach(b=>{
+      if (BUILDING_DEFS[b.type]?.isWarehouse && b.storage) n += b.storage.count(itemId);
+    });
+    return n;
+  }
+
+  // 인벤토리 우선 소모 후 창고에서 보충
+  _consumeTotal(itemId, qty) {
+    let rem = qty;
+    const fromInv = Math.min(playerInventory.count(itemId), rem);
+    if (fromInv > 0) { playerInventory.consume(itemId, fromInv); rem -= fromInv; }
+    if (rem > 0) {
+      (BASE_DATA.buildings||[]).forEach(b=>{
+        if (rem <= 0) return;
+        if (BUILDING_DEFS[b.type]?.isWarehouse && b.storage) {
+          const take = Math.min(b.storage.count(itemId), rem);
+          if (take > 0) { b.storage.consume(itemId, take); rem -= take; }
+        }
+      });
+    }
+  }
+
   _canCraft(recipe) {
     const energyCost = this._craftEnergyCost(recipe);
-    return recipe.inputs.every(inp=>playerInventory.count(inp.id)>=inp.qty)
+    return recipe.inputs.every(inp=>this._countTotal(inp.id)>=inp.qty)
       && playerInventory.count('energy_basic') >= energyCost;
   }
 
@@ -2807,7 +2843,7 @@ class CraftScene extends Phaser.Scene {
       return;
     }
     playerInventory.consume('energy_basic', this._craftEnergyCost(recipe));
-    recipe.inputs.forEach(inp=>playerInventory.consume(inp.id,inp.qty));
+    recipe.inputs.forEach(inp=>this._consumeTotal(inp.id, inp.qty));
     playerInventory.add(recipe.out.id,recipe.out.qty);
     const d=ITEM_DEFS[recipe.out.id];
     this._showHint(`✅ ${d?.icon||''} ${d?.label||recipe.out.id} ×${recipe.out.qty} 제작 완료!`);
