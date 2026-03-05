@@ -2654,6 +2654,9 @@ class CraftScene extends Phaser.Scene {
     this.selectedRecipe = null;
     this._listObjs      = [];
     this._detailObjs    = [];
+    this.craftQty       = 1;
+    this.crafting       = false;
+    this.craftTimer     = null;
 
     // ── 배경
     this.add.rectangle(0,0,GAME_WIDTH,GAME_HEIGHT,0x060010).setOrigin(0);
@@ -2742,9 +2745,12 @@ class CraftScene extends Phaser.Scene {
     }
   }
 
-  _canCraft(recipe) {
-    const energyCost = this._craftEnergyCost(recipe);
-    return recipe.inputs.every(inp=>this._countTotal(inp.id)>=inp.qty)
+  // '1분' → ms (1분 = 60초)
+  _parseTimeMs(timeStr) { return (parseInt(timeStr)||1) * 60000; }
+
+  _canCraft(recipe, qty=1) {
+    const energyCost = this._craftEnergyCost(recipe) * qty;
+    return recipe.inputs.every(inp=>this._countTotal(inp.id) >= inp.qty * qty)
       && playerInventory.count('energy_basic') >= energyCost;
   }
 
@@ -2758,7 +2764,7 @@ class CraftScene extends Phaser.Scene {
 
     recipes.forEach((recipe,i)=>{
       const ry=LY+i*IH;
-      const canCraft=this._canCraft(recipe);
+      const canCraft=this._canCraft(recipe, this.craftQty||1);
       const isSelected=this.selectedRecipe?.id===recipe.id;
       const outDef=ITEM_DEFS[recipe.out.id];
 
@@ -2789,66 +2795,126 @@ class CraftScene extends Phaser.Scene {
     this._detailObjs.forEach(o=>{try{o.destroy();}catch(e){}});
     this._detailObjs=[];
     const R=o=>{this._detailObjs.push(o);return o;};
-    const DX=GAME_WIDTH-670, DY=52, DW=660;
+    const DX=GAME_WIDTH-670, DY=52, DW=660, pad=20;
 
     if (!recipe) {
       R(this.add.text(DX+DW/2,DY+220,'← 레시피를 선택하세요',{fontSize:'14px',fill:'#333355',fontFamily:'Arial'}).setOrigin(0.5));
       return;
     }
 
-    const outDef=ITEM_DEFS[recipe.out.id];
-    const canCraft=this._canCraft(recipe);
-    const pad=20;
+    const qty       = this.craftQty||1;
+    const ec        = this._craftEnergyCost(recipe);
+    const canCraft  = this._canCraft(recipe, qty);
+    const crafting  = this.crafting;
+    const outDef    = ITEM_DEFS[recipe.out.id];
 
-    // 출력 아이템
+    // ── 제작 결과
     R(this.add.text(DX+pad,DY+16,'제작 결과',{fontSize:'10px',fill:'#555577',fontFamily:'Arial'}));
     R(this.add.rectangle(DX+pad,DY+28,72,72,0x0a001e).setOrigin(0).setStrokeStyle(2,canCraft?0x2ecc71:0x4a2c6a));
     R(this.add.text(DX+pad+36,DY+62,outDef?.icon||'?',{fontSize:'30px'}).setOrigin(0.5));
-    R(this.add.text(DX+pad+82,DY+38,outDef?.label||recipe.id,{fontSize:'16px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}));
-    R(this.add.text(DX+pad+82,DY+60,`× ${recipe.out.qty}개`,{fontSize:'12px',fill:'#aaaaaa',fontFamily:'Arial'}));
-    R(this.add.text(DX+pad+82,DY+78,`⏱ ${recipe.time}  ⚡ 에너지 파편 ×${this._craftEnergyCost(recipe)}`,{fontSize:'10px',fill:'#446644',fontFamily:'Arial'}));
+    R(this.add.text(DX+pad+82,DY+36,outDef?.label||recipe.id,{fontSize:'16px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}));
+    R(this.add.text(DX+pad+82,DY+56,`× ${recipe.out.qty*qty}개`,{fontSize:'13px',fill:'#aaaaaa',fontFamily:'Arial'}));
+    R(this.add.text(DX+pad+82,DY+75,`⏱ ${recipe.time}  ⚡ ×${ec*qty}`,{fontSize:'10px',fill:'#446644',fontFamily:'Arial'}));
 
-    // 재료
+    // ── 필요 재료 (일반 재료 + 에너지 한 행)
     R(this.add.text(DX+pad,DY+110,'필요 재료',{fontSize:'10px',fill:'#555577',fontFamily:'Arial'}));
     R(this.add.rectangle(DX+pad,DY+122,DW-pad*2,1,0x2a1a4a).setOrigin(0));
 
-    recipe.inputs.forEach((inp,i)=>{
-      const iy=DY+128+i*46;
-      const inDef=ITEM_DEFS[inp.id];
-      const have=playerInventory.count(inp.id);
-      const ok=have>=inp.qty;
-      R(this.add.rectangle(DX+pad,iy,DW-pad*2,42,ok?0x081408:0x140808).setOrigin(0).setStrokeStyle(1,ok?0x2a4a2a:0x3a1a1a));
-      R(this.add.text(DX+pad+8,iy+21,inDef?.icon||'?',{fontSize:'22px'}).setOrigin(0,0.5));
-      R(this.add.text(DX+pad+38,iy+11,inDef?.label||inp.id,{fontSize:'12px',fill:'#cccccc',fontFamily:'Arial'}));
-      R(this.add.text(DX+pad+38,iy+27,`보유: ${have}  /  필요: ${inp.qty}`,{fontSize:'10px',fill:ok?'#66cc66':'#cc6666',fontFamily:'Arial'}));
+    const allInputs=[
+      ...recipe.inputs.map(inp=>({id:inp.id, need:inp.qty*qty, energy:false})),
+      {id:'energy_basic', need:ec*qty, energy:true}
+    ];
+    let curY=DY+128;
+    allInputs.forEach(inp=>{
+      const def=ITEM_DEFS[inp.id];
+      const have=inp.energy ? playerInventory.count(inp.id) : this._countTotal(inp.id);
+      const ok=have>=inp.need;
+      R(this.add.rectangle(DX+pad,curY,DW-pad*2,40,ok?0x081408:0x140808).setOrigin(0).setStrokeStyle(1,ok?0x2a4a2a:0x3a1a1a));
+      R(this.add.text(DX+pad+8,curY+20,def?.icon||'⚡',{fontSize:'20px'}).setOrigin(0,0.5));
+      R(this.add.text(DX+pad+36,curY+10,def?.label||inp.id,{fontSize:'12px',fill:'#cccccc',fontFamily:'Arial'}));
+      R(this.add.text(DX+pad+36,curY+26,`보유: ${have}  /  필요: ${inp.need}`,{fontSize:'10px',fill:ok?'#66cc66':'#cc6666',fontFamily:'Arial'}));
+      curY+=44;
     });
 
-    const craftY=DY+128+recipe.inputs.length*46+14;
-    const cb=R(this.add.rectangle(DX+DW/2,craftY,200,38,canCraft?0x1a4a1a:0x1e1e1e).setOrigin(0.5)
-      .setInteractive({useHandCursor:canCraft}).setStrokeStyle(2,canCraft?0x2ecc71:0x333333));
-    R(this.add.text(DX+DW/2,craftY,canCraft?'⚗️ 제작하기':'재료 부족',{fontSize:'14px',fill:canCraft?'#2ecc71':'#555555',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5));
+    // ── 수량 선택
+    curY+=8;
+    R(this.add.text(DX+pad,curY,'제작 수량',{fontSize:'10px',fill:'#555577',fontFamily:'Arial'}));
+    curY+=20;
+    const midX=DX+DW/2;
+    const mkQ=(lbl,dx,delta)=>{
+      const bx=midX+dx;
+      const bb=R(this.add.rectangle(bx,curY,42,24,0x1a1a2a).setInteractive({useHandCursor:!crafting}).setStrokeStyle(1,0x3a3a5a));
+      R(this.add.text(bx,curY,lbl,{fontSize:'11px',fill:crafting?'#444444':'#aaaacc',fontFamily:'Arial'}).setOrigin(0.5));
+      if (!crafting) {
+        bb.on('pointerdown',()=>{ this.craftQty=Phaser.Math.Clamp((this.craftQty||1)+delta,1,999); this._buildRecipeDetail(recipe); });
+        bb.on('pointerover',()=>bb.setFillStyle(0x2a2a4a)); bb.on('pointerout',()=>bb.setFillStyle(0x1a1a2a));
+      }
+    };
+    mkQ('−10',-126,-10); mkQ('−1',-76,-1);
+    R(this.add.text(midX,curY,String(qty),{fontSize:'18px',fill:crafting?'#666600':'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5));
+    mkQ('+1',+76,+1); mkQ('+10',+126,+10);
 
-    if (canCraft) {
-      cb.on('pointerover',()=>cb.setFillStyle(0x2a6a2a));
-      cb.on('pointerout', ()=>cb.setFillStyle(0x1a4a1a));
-      cb.on('pointerdown',()=>this._doCraft(recipe));
+    curY+=20;
+    const totalMs=this._parseTimeMs(recipe.time)*qty;
+    const totalSec=Math.floor(totalMs/1000);
+    const tDisp=totalSec>=60?`${Math.floor(totalSec/60)}분 ${totalSec%60?totalSec%60+'초':''}`.trim():`${totalSec}초`;
+    R(this.add.text(midX,curY,`⏱ 총 제작 시간: ${tDisp}`,{fontSize:'10px',fill:'#4a6a4a',fontFamily:'Arial'}).setOrigin(0.5));
+
+    // ── 제작 버튼
+    curY+=22;
+    const missingEnergy=!recipe.inputs.every(inp=>this._countTotal(inp.id)>=inp.qty*qty) ? false
+      : playerInventory.count('energy_basic')<ec*qty;
+    const btnLbl=crafting?'⚗️ 제작 중...':(canCraft?`⚗️ ×${qty} 제작하기`:(missingEnergy?'⚡ 에너지 부족':'재료 부족'));
+    const btnCol=crafting?0x2a2a2a:(canCraft?0x1a4a1a:0x1e1e1e);
+    const btnBrd=crafting?0x4a4a4a:(canCraft?0x2ecc71:0x333333);
+    const cb=R(this.add.rectangle(midX,curY,220,36,btnCol).setOrigin(0.5)
+      .setInteractive({useHandCursor:canCraft&&!crafting}).setStrokeStyle(2,btnBrd));
+    R(this.add.text(midX,curY,btnLbl,{fontSize:'13px',fill:canCraft&&!crafting?'#2ecc71':'#555555',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5));
+    if (canCraft&&!crafting) {
+      cb.on('pointerover',()=>cb.setFillStyle(0x2a6a2a)); cb.on('pointerout',()=>cb.setFillStyle(0x1a4a1a));
+      cb.on('pointerdown',()=>this._doCraft(recipe,qty));
+    }
+
+    // ── 진행 바 표시 영역 (crafting 중) — 실제 바는 _craftProgressBar (persistent)
+    if (crafting) {
+      curY+=26;
+      R(this.add.rectangle(DX+pad,curY,DW-pad*2,10,0x111111).setOrigin(0).setStrokeStyle(1,0x333333));
+      this._craftProgressBg2=R(this.add.rectangle(DX+pad,curY,DW-pad*2,10,0x111111).setOrigin(0));
+      this._craftProgressRef={x:DX+pad,y:curY,maxW:DW-pad*2};
+    } else {
+      this._craftProgressRef=null;
     }
   }
 
-  _doCraft(recipe) {
-    if (!this._canCraft(recipe)){
-      const ec=this._craftEnergyCost(recipe);
-      if (playerInventory.count('energy_basic')<ec) this._showHint(`❌ 에너지 파편 ${ec}개 필요!`);
-      else this._showHint('❌ 재료 부족!');
+  _doCraft(recipe, qty=1) {
+    if (this.crafting) return;
+    if (!this._canCraft(recipe, qty)) {
+      const ec=this._craftEnergyCost(recipe)*qty;
+      if (!recipe.inputs.every(inp=>this._countTotal(inp.id)>=inp.qty*qty)) this._showHint('❌ 재료 부족!');
+      else this._showHint(`❌ 에너지 파편 ${ec}개 필요!`);
       return;
     }
-    playerInventory.consume('energy_basic', this._craftEnergyCost(recipe));
-    recipe.inputs.forEach(inp=>this._consumeTotal(inp.id, inp.qty));
-    playerInventory.add(recipe.out.id,recipe.out.qty);
+    // 재료 즉시 소모
+    playerInventory.consume('energy_basic', this._craftEnergyCost(recipe)*qty);
+    recipe.inputs.forEach(inp=>this._consumeTotal(inp.id, inp.qty*qty));
+
+    // 제작 시작
+    this.crafting=true; this.craftInProgress={recipe,qty};
+    this.craftStartTime=this.time.now;
+    this.craftDuration=this._parseTimeMs(recipe.time)*qty;
+
+    this.craftTimer=this.time.delayedCall(this.craftDuration,()=>this._completeCraft());
+    this._buildRecipeList(); this._buildRecipeDetail(recipe);
+    if (this.inventoryUI?.visible) this.inventoryUI.refresh();
+  }
+
+  _completeCraft() {
+    const {recipe,qty}=this.craftInProgress;
+    playerInventory.add(recipe.out.id, recipe.out.qty*qty);
     const d=ITEM_DEFS[recipe.out.id];
-    this._showHint(`✅ ${d?.icon||''} ${d?.label||recipe.out.id} ×${recipe.out.qty} 제작 완료!`);
-    this._buildRecipeDetail(recipe);
-    this._buildRecipeList();
+    this._showHint(`✅ ${d?.icon||''} ${d?.label||recipe.out.id} ×${recipe.out.qty*qty} 제작 완료!`);
+    this.crafting=false; this.craftTimer=null; this.craftInProgress=null;
+    this._buildRecipeList(); this._buildRecipeDetail(recipe);
     if (this.inventoryUI?.visible) this.inventoryUI.refresh();
   }
 
@@ -2860,6 +2926,25 @@ class CraftScene extends Phaser.Scene {
 
   update() {
     if (this.goldText) this.goldText.setText(`🪙 ${PLAYER_GOLD}`);
+    // 제작 진행 바 업데이트
+    if (this.crafting && this.craftInProgress && this._craftProgressRef) {
+      const elapsed=this.time.now-this.craftStartTime;
+      const ratio=Math.min(1, elapsed/this.craftDuration);
+      const ref=this._craftProgressRef;
+      // 진행 바 그래픽 갱신 (detail 내부 persistent 오브젝트)
+      if (!this._craftProgGfx || !this._craftProgGfx.active) {
+        this._craftProgGfx=this.add.rectangle(ref.x, ref.y, 0, 10, 0x3498db).setOrigin(0).setDepth(50);
+      }
+      this._craftProgGfx.setPosition(ref.x, ref.y).setSize(ref.maxW*ratio, 10);
+      const remSec=Math.max(0, Math.ceil((this.craftDuration-elapsed)/1000));
+      if (!this._craftProgTxt || !this._craftProgTxt.active) {
+        this._craftProgTxt=this.add.text(ref.x+ref.maxW/2, ref.y+14, '', {fontSize:'10px',fill:'#3498db',fontFamily:'Arial'}).setOrigin(0.5).setDepth(50);
+      }
+      this._craftProgTxt.setText(`⏱ ${remSec}초 남음`);
+    } else if (!this.crafting) {
+      if (this._craftProgGfx?.active)  { this._craftProgGfx.destroy();  this._craftProgGfx=null;  }
+      if (this._craftProgTxt?.active)  { this._craftProgTxt.destroy();  this._craftProgTxt=null;  }
+    }
   }
 }
 
