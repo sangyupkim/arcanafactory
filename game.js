@@ -791,14 +791,16 @@ class HubScene extends Phaser.Scene {
 }
 
 class VirtualJoystick {
-  constructor(scene, x, y) {
+  // zoom: 카메라 줌 배율 — world 좌표 = screen 좌표 / zoom
+  constructor(scene, x, y, zoom=1) {
+    this.zoom = zoom;
     this.baseX = x; this.baseY = y; this.radius = 50; this.vx = 0; this.vy = 0; this.active = false; this.pointerId = null;
-    this.base  = scene.add.circle(x, y, this.radius, 0xffffff, 0.08).setDepth(20).setStrokeStyle(2, 0xffffff, 0.2);
-    this.stick = scene.add.circle(x, y, 20, 0xffffff, 0.25).setDepth(21);
+    this.base  = scene.add.circle(x/zoom, y/zoom, this.radius/zoom, 0xffffff, 0.08).setDepth(20).setStrokeStyle(2/zoom, 0xffffff, 0.2);
+    this.stick = scene.add.circle(x/zoom, y/zoom, 20/zoom, 0xffffff, 0.25).setDepth(21);
     scene.input.on('pointerdown', (p) => {
       if (p.x < GAME_WIDTH / 2 && p.y > GAME_HEIGHT / 2) {
         this.pointerId = p.id; this.active = true; this.baseX = p.x; this.baseY = p.y;
-        this.base.setPosition(p.x, p.y); this.stick.setPosition(p.x, p.y);
+        this.base.setPosition(p.x/zoom, p.y/zoom); this.stick.setPosition(p.x/zoom, p.y/zoom);
       }
     });
     scene.input.on('pointermove', (p) => {
@@ -809,10 +811,10 @@ class VirtualJoystick {
       const angle = Math.atan2(dy, dx);
       this.vx = Math.cos(angle) * (clamped / this.radius);
       this.vy = Math.sin(angle) * (clamped / this.radius);
-      this.stick.setPosition(this.baseX + Math.cos(angle)*clamped, this.baseY + Math.sin(angle)*clamped);
+      this.stick.setPosition((this.baseX + Math.cos(angle)*clamped)/zoom, (this.baseY + Math.sin(angle)*clamped)/zoom);
     });
     scene.input.on('pointerup', (p) => {
-      if (p.id === this.pointerId) { this.active = false; this.pointerId = null; this.vx = 0; this.vy = 0; this.stick.setPosition(this.baseX, this.baseY); }
+      if (p.id === this.pointerId) { this.active = false; this.pointerId = null; this.vx = 0; this.vy = 0; this.stick.setPosition(this.baseX/zoom, this.baseY/zoom); }
     });
   }
   update() { this.base.setAlpha(this.active ? 0.18 : 0.06); this.stick.setAlpha(this.active ? 0.35 : 0.12); }
@@ -852,6 +854,12 @@ class BaseScene extends Phaser.Scene {
           this.add.text(bx+b.w*TILE/2,by+b.h*TILE/2-8,def.icon,{fontSize:'20px'}).setOrigin(0.5).setDepth(11),
           this.add.text(bx+b.w*TILE/2,by+b.h*TILE/2+10,def.label,{fontSize:'10px',fill:'#ffffff',fontFamily:'Arial'}).setOrigin(0.5).setDepth(11)
         ];
+        // 게이지 그래픽 복원 (채굴기/벌목소)
+        if (def.isMiner || def.isLumber) {
+          if (!b.gaugeMax) b.gaugeMax = 10 * (b.resTier || 1);
+          if (b.gauge === undefined) b.gauge = 0;
+          b.gaugeGfx = this.add.graphics().setDepth(12);
+        }
       });
       this.pipes.forEach(p => {
         p.gfx = this.add.graphics().setDepth(9);
@@ -874,6 +882,7 @@ class BaseScene extends Phaser.Scene {
 
     // 플레이어 인벤토리 UI (팝업 열릴 때만 우측에 표시)
     this.inventoryUI = new InventoryUI(this, playerInventory, { title:'🎒 인벤토리', depth:95 });
+    this._buildCharPanel();
     this.goldBg  = this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(12).setStrokeStyle(1,0x888800);
     this.goldText= this.add.text(GAME_WIDTH-8,15,`🪙 ${PLAYER_GOLD}`,{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(13);
 
@@ -909,10 +918,11 @@ class BaseScene extends Phaser.Scene {
       if (this.popupVisible) return; // 팝업 열려있으면 I키 무시
       this.inventoryUI.container.setPosition(this.inventoryUI.ox, this.inventoryUI.oy);
       this.inventoryUI.toggle();
+      if (this.inventoryUI.visible) this._showCharPanel(); else this._hideCharPanel();
     });
     this.keySp.on('down', () => { if (this.buildMode) this._confirmPlace(); });
     this.keyEsc.on('down', () => {
-      if (this.inventoryUI.visible && !this.popupVisible) { this.inventoryUI.hide(); return; }
+      if (this.inventoryUI.visible && !this.popupVisible) { this.inventoryUI.hide(); this._hideCharPanel(); return; }
       if (this.popupVisible)        { this._closePopup(); return; }
       if (this.buildMode)           { this._cancelBuild(); return; }
       if (this.buildPanel.visible)  { this.buildPanel.setVisible(false); return; }
@@ -920,6 +930,14 @@ class BaseScene extends Phaser.Scene {
     });
 
     this.joystick = new VirtualJoystick(this, 80, 490);
+
+    // 오프라인 생산 보상: 기지 밖에 있던 시간 동안의 생산 처리 (최대 300틱)
+    if (BASE_DATA.lastProductionMs) {
+      const elapsed = Date.now() - BASE_DATA.lastProductionMs;
+      const catchUp = Math.min(Math.floor(elapsed / 1000), 300);
+      for (let i = 0; i < catchUp; i++) this._tickProduction();
+    }
+
     this.time.addEvent({ delay:1000, loop:true, callback:this._tickProduction, callbackScope:this });
     this._buildMobileButtons();
   }
@@ -972,6 +990,7 @@ class BaseScene extends Phaser.Scene {
       if (this.popupVisible) return;
       this.inventoryUI.container.setPosition(this.inventoryUI.ox, this.inventoryUI.oy);
       this.inventoryUI.toggle();
+      if (this.inventoryUI.visible) this._showCharPanel(); else this._hideCharPanel();
     });
 
     // 회전 (R)
@@ -984,7 +1003,7 @@ class BaseScene extends Phaser.Scene {
 
     // 취소/뒤로 (ESC) - 양열 합쳐서 전체 너비
     mkBtn((RX1 + RX2) / 2, RY3, BW * 2 + GAP, BH, '↩️', '취소 / 뒤로', 0x2a1010, () => {
-      if (this.inventoryUI.visible && !this.popupVisible) { this.inventoryUI.hide(); return; }
+      if (this.inventoryUI.visible && !this.popupVisible) { this.inventoryUI.hide(); this._hideCharPanel(); return; }
       if (this.popupVisible)       { this._closePopup(); return; }
       if (this.buildMode)          { this._cancelBuild(); return; }
       if (this.buildPanel.visible) { this.buildPanel.setVisible(false); return; }
@@ -1027,6 +1046,77 @@ class BaseScene extends Phaser.Scene {
     let used=0, total=0;
     estores.forEach(b=>{ total+=b.storage.slots.length; used+=b.storage.slots.filter(sl=>sl.itemId!==null).length; });
     this.hudStatus.setText(used>0?`⚡ ${used}/${total} 슬롯`:`⚡ 에너지 없음 ⚠️`).setStyle({fill:used>0?'#f1c40f':'#e74c3c'});
+  }
+
+  // ─────────────────────────────────────────
+  // 캐릭터 정보창
+  // ─────────────────────────────────────────
+  _buildCharPanel() {
+    const pw=178, ph=310, depth=95;
+    this.charPanel = this.add.container(0, 0).setDepth(depth).setVisible(false);
+    const bg = this.add.rectangle(0, 0, pw, ph, 0x0a0015, 0.97).setOrigin(0).setStrokeStyle(2, 0x6c3483);
+    this.charPanel.add(bg);
+    this.charPanel.add(this.add.text(pw/2, 14, '📋 캐릭터 정보', {fontSize:'12px',fill:'#c39bd3',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5));
+    this.charPanel.add(this.add.rectangle(0, 28, pw, 1, 0x4a2c6a).setOrigin(0));
+
+    // 텍스트 줄들 (동적 갱신용)
+    const mk = (y, col='#dddddd') => {
+      const t = this.add.text(10, y, '', {fontSize:'11px', fill:col, fontFamily:'Arial'});
+      this.charPanel.add(t); return t;
+    };
+    this.cpName  = mk(36, '#ffffff');
+    this.cpJob   = mk(52, '#c39bd3');
+    this.charPanel.add(this.add.rectangle(0, 68, pw, 1, 0x2a1a3a).setOrigin(0));
+    this.cpHp    = mk(74, '#e74c3c');
+    this.cpAtk   = mk(90, '#f39c12');
+    this.cpDef   = mk(106, '#3498db');
+    this.cpSpd   = mk(122, '#2ecc71');
+    this.charPanel.add(this.add.rectangle(0, 138, pw, 1, 0x2a1a3a).setOrigin(0));
+    this.cpStr   = mk(144, '#e67e22');
+    this.cpAgi   = mk(160, '#27ae60');
+    this.cpInt   = mk(176, '#8e44ad');
+    this.charPanel.add(this.add.rectangle(0, 192, pw, 1, 0x2a1a3a).setOrigin(0));
+    this.charPanel.add(this.add.text(10, 198, '⚔️ 숙련도', {fontSize:'11px',fill:'#aaaaaa',fontFamily:'Arial'}));
+    this.cpProfSword = mk(214, '#f1c40f');
+    this.cpProfBow   = mk(230, '#f1c40f');
+    this.cpProfStaff = mk(246, '#f1c40f');
+
+    // 닫기 버튼
+    const cb = this.add.rectangle(pw-11, 11, 20, 20, 0x3a1a2a).setInteractive({useHandCursor:true});
+    this.charPanel.add([cb, this.add.text(pw-11, 11, '✕', {fontSize:'11px',fill:'#cc4444',fontFamily:'Arial'}).setOrigin(0.5)]);
+    cb.on('pointerdown', () => this._hideCharPanel());
+  }
+
+  _showCharPanel() {
+    this._refreshCharPanel();
+    // 인벤토리 왼쪽에 배치
+    const ix = this.inventoryUI.container.x;
+    const iy = this.inventoryUI.container.y;
+    this.charPanel.setPosition(ix - 186, iy);
+    this.charPanel.setVisible(true);
+  }
+
+  _hideCharPanel() {
+    this.charPanel.setVisible(false);
+  }
+
+  _refreshCharPanel() {
+    const ps = PLAYER_STATS;
+    const jobLabel = {검사:'⚔️ 검사 (STR)', 궁수:'🏹 궁수 (AGI)', 마법사:'🔮 마법사 (INT)'}[ps.job] || ps.job;
+    this.cpName.setText(`Lv.${ps.level}  EXP: ${ps.exp}/${ps.expToNext}`);
+    this.cpJob.setText(jobLabel);
+    this.cpHp.setText(`❤️ HP:  ${ps.hp} / ${ps.maxHp}`);
+    this.cpAtk.setText(`⚔️ ATK: ${ps.atk}`);
+    this.cpDef.setText(`🛡️ DEF: ${ps.def}`);
+    this.cpSpd.setText(`💨 SPD: ${ps.spd}`);
+    this.cpStr.setText(`💪 STR: ${ps.str}`);
+    this.cpAgi.setText(`🏃 AGI: ${ps.agi}`);
+    this.cpInt.setText(`✨ INT: ${ps.int}`);
+    const pf = ps.prof || {};
+    const bar = (p) => { const f=Math.min(p.xp/p.xpNext,1); return '█'.repeat(Math.round(f*8))+'░'.repeat(8-Math.round(f*8)); };
+    this.cpProfSword.setText(`검  Lv.${pf.sword?.lv||1} ${bar(pf.sword||{xp:0,xpNext:50})}`);
+    this.cpProfBow.setText(`활  Lv.${pf.bow?.lv||1} ${bar(pf.bow||{xp:0,xpNext:50})}`);
+    this.cpProfStaff.setText(`지팡이 Lv.${pf.staff?.lv||1} ${bar(pf.staff||{xp:0,xpNext:50})}`);
   }
 
   // ─────────────────────────────────────────
@@ -1524,7 +1614,9 @@ class BaseScene extends Phaser.Scene {
       else if (def.resource)        storage=new ItemStorage('채굴기 내부',1,100);
 
       const resTier = (def.isMiner||def.isLumber) ? 1 : undefined;
-      this.buildings.push({id,type,col,row,w,h,gfx:[bg2,ico,lbl],level:1,storage,resTier});
+      const gauge = 0, gaugeMax = (def.isMiner||def.isLumber) ? 10 : 0;
+      const gaugeGfx = (def.isMiner||def.isLumber) ? this.add.graphics().setDepth(12) : null;
+      this.buildings.push({id,type,col,row,w,h,gfx:[bg2,ico,lbl],level:1,storage,resTier,gauge,gaugeMax,gaugeGfx});
       this._cancelBuild(); this._redrawGrid();
       this._showHint(`✅ ${def.label} 설치 완료!`);
     }
@@ -1628,6 +1720,7 @@ class BaseScene extends Phaser.Scene {
     }
     next.costs.forEach(c => playerInventory.consume(c.id, c.qty));
     b.resTier = tier + 1;
+    b.gauge = 0; b.gaugeMax = 10 * b.resTier; // 게이지 초기화 및 새 티어 반영
     const resId = this._getBuildingResource(b);
     const resDef = ITEM_DEFS[resId];
     this._showHint(`⬆️ Tier ${b.resTier} 업그레이드! 이제 ${resDef?.label||resId} 생산`);
@@ -1811,6 +1904,7 @@ class BaseScene extends Phaser.Scene {
   }
 
   _tickProduction() {
+    BASE_DATA.lastProductionMs = Date.now();
     let anyProduced=false;
     this.buildings.forEach(b=>{
       const def=BUILDING_DEFS[b.type];
@@ -1818,6 +1912,18 @@ class BaseScene extends Phaser.Scene {
 
       const estore=this._findConnectedEstore(b);
       if (!estore) return;
+
+      // 게이지 채우기 (채굴기/벌목소는 gaugeMax 도달 시 생산)
+      if (def.isMiner || def.isLumber) {
+        b.gauge = (b.gauge||0) + 1;
+        const tier = b.resTier || 1;
+        const gMax = 10 * tier;
+        if (b.gaugeMax !== gMax) { b.gaugeMax = gMax; }
+        this._drawGaugeBar(b);
+        if (b.gauge < b.gaugeMax) return; // 아직 게이지 미충족
+        b.gauge = 0;
+        this._drawGaugeBar(b);
+      }
 
       const wh=this._findConnectedWarehouse(b);
       const whActive = wh && !wh.paused;
@@ -1838,6 +1944,21 @@ class BaseScene extends Phaser.Scene {
     if (anyProduced) {
       if (this.inventoryUI?.visible) this.inventoryUI.refresh();
       this._refreshPopupSlots();
+    }
+  }
+
+  _drawGaugeBar(b) {
+    const g = b.gaugeGfx;
+    if (!g) return;
+    g.clear();
+    const bx = GRID_OFFSET_X + b.col*TILE, by = GRID_OFFSET_Y + b.row*TILE;
+    const barW = b.w*TILE - 4, barH = 4;
+    const bX = bx + 2, bY = by + b.h*TILE - 6;
+    const ratio = Math.min((b.gauge||0) / (b.gaugeMax||1), 1);
+    g.fillStyle(0x111111, 0.8); g.fillRect(bX, bY, barW, barH);
+    if (ratio > 0) {
+      const col = ratio >= 1 ? 0x2ecc71 : 0xf39c12;
+      g.fillStyle(col, 1); g.fillRect(bX, bY, Math.floor(barW * ratio), barH);
     }
   }
 
@@ -1975,6 +2096,12 @@ const PLAYER_STATS = {
   job:'검사', maxHp:200, hp:200,
   atk:30, def:8, spd:158,
   level:1, exp:0, expToNext:100,
+  str:5, agi:5, int:5,
+  prof: {
+    sword: { lv:1, xp:0, xpNext:50 },
+    bow:   { lv:1, xp:0, xpNext:50 },
+    staff: { lv:1, xp:0, xpNext:50 },
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -2127,8 +2254,8 @@ class FieldScene extends Phaser.Scene {
     this.key1.on('down',   ()=>this._trySkill('spin'));
     this.keyEsc.on('down', ()=>this._exitToSelect());
 
-    this.joystick = new VirtualJoystick(this, 80, GAME_HEIGHT-70);
-    // 조이스틱을 화면 고정으로
+    // 조이스틱: zoom 전달 → world 좌표 = screen 좌표 / FIELD_ZOOM
+    this.joystick = new VirtualJoystick(this, 80, GAME_HEIGHT-70, FIELD_ZOOM);
     this.joystick.base.setScrollFactor(0).setDepth(85);
     this.joystick.stick.setScrollFactor(0).setDepth(86);
     this._buildMobileButtons();
@@ -2156,48 +2283,50 @@ class FieldScene extends Phaser.Scene {
   }
 
   // ── HUD
+  // _hudCon: scrollFactor(0) + scale(1/FIELD_ZOOM) → 자식 좌표 = 화면 픽셀 좌표
   _buildHUD() {
-    const sf = (o) => o.setScrollFactor(0); // 화면 고정 헬퍼
+    this._hudCon = this.add.container(0, 0).setScrollFactor(0).setDepth(79).setScale(1/FIELD_ZOOM);
+    const a = (o) => { this._hudCon.add(o); return o; };
 
-    sf(this.add.rectangle(0,0,GAME_WIDTH,52,0x08000f,0.96).setOrigin(0).setDepth(80));
-    sf(this.add.rectangle(0,51,GAME_WIDTH,2,0xe74c3c).setOrigin(0).setDepth(80));
+    a(this.add.rectangle(0,0,GAME_WIDTH,52,0x08000f,0.96).setOrigin(0).setDepth(80));
+    a(this.add.rectangle(0,51,GAME_WIDTH,2,0xe74c3c).setOrigin(0).setDepth(80));
 
-    const backBtn=sf(this.add.rectangle(52,26,90,30,0x180a18).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x4a2c6a));
-    sf(this.add.text(52,26,'← 나가기',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
+    const backBtn=a(this.add.rectangle(52,26,90,30,0x180a18).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x4a2c6a));
+    a(this.add.text(52,26,'← 나가기',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
     backBtn.on('pointerdown',()=>this._exitToSelect());
 
-    sf(this.add.text(GAME_WIDTH/2,15,`스테이지  ${this.stageId}`,{fontSize:'14px',fill:'#e87070',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(81));
-    sf(this.add.text(GAME_WIDTH/2,34,this.stageDef.world,{fontSize:'10px',fill:'#3a5a3a',fontFamily:'Arial'}).setOrigin(0.5).setDepth(81));
+    a(this.add.text(GAME_WIDTH/2,15,`스테이지  ${this.stageId}`,{fontSize:'14px',fill:'#e87070',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(81));
+    a(this.add.text(GAME_WIDTH/2,34,this.stageDef.world,{fontSize:'10px',fill:'#3a5a3a',fontFamily:'Arial'}).setOrigin(0.5).setDepth(81));
 
-    sf(this.add.text(113,18,'HP',{fontSize:'11px',fill:'#887788',fontFamily:'Arial'}).setOrigin(1,0.5).setDepth(81));
-    this.hpBarBg=sf(this.add.rectangle(116,18,180,12,0x2a0e0e).setOrigin(0,0.5).setDepth(81));
-    this.hpBar  =sf(this.add.rectangle(116,18,180,12,0xe74c3c).setOrigin(0,0.5).setDepth(82));
-    this.hpText =sf(this.add.text(300,18,'',{fontSize:'10px',fill:'#ccaaaa',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(83));
+    a(this.add.text(113,18,'HP',{fontSize:'11px',fill:'#887788',fontFamily:'Arial'}).setOrigin(1,0.5).setDepth(81));
+    this.hpBarBg=a(this.add.rectangle(116,18,180,12,0x2a0e0e).setOrigin(0,0.5).setDepth(81));
+    this.hpBar  =a(this.add.rectangle(116,18,180,12,0xe74c3c).setOrigin(0,0.5).setDepth(82));
+    this.hpText =a(this.add.text(300,18,'',{fontSize:'10px',fill:'#ccaaaa',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(83));
 
-    this.autoBtn=sf(this.add.rectangle(GAME_WIDTH-184,26,90,28,0x0e1828).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x3498db));
-    this.autoBtnLbl=sf(this.add.text(GAME_WIDTH-184,26,'수동 모드',{fontSize:'11px',fill:'#4a8ab8',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
+    this.autoBtn=a(this.add.rectangle(GAME_WIDTH-184,26,90,28,0x0e1828).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x3498db));
+    this.autoBtnLbl=a(this.add.text(GAME_WIDTH-184,26,'수동 모드',{fontSize:'11px',fill:'#4a8ab8',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
     this.autoBtn.on('pointerdown',()=>this._toggleAuto());
 
-    this.enemyCounter=sf(this.add.text(GAME_WIDTH/2-140,36,'',{fontSize:'11px',fill:'#f1c40f',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(81));
-    sf(this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(82).setStrokeStyle(1,0x888800));
-    this.goldText=sf(this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(83));
+    this.enemyCounter=a(this.add.text(GAME_WIDTH/2-140,36,'',{fontSize:'11px',fill:'#f1c40f',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(81));
+    a(this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(82).setStrokeStyle(1,0x888800));
+    this.goldText=a(this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(83));
 
     // 스킬 쿨타임 오버레이 (원형 버튼 위에 표시)
     this.skill1Bg=null;
-    this.skill1CdOverlay=sf(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x000000,0).setDepth(91));
-    this.skill1CdText=sf(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'',{fontSize:'13px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(92));
+    this.skill1CdOverlay=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x000000,0).setDepth(91));
+    this.skill1CdText=a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'',{fontSize:'13px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(92));
   }
 
   _buildMobileButtons() {
-    const sf = (o) => o.setScrollFactor(0);
-    const atkBtn=sf(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-80,34,0x3a1a4a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
+    const a = (o) => { this._hudCon.add(o); return o; };
+    const atkBtn=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-80,34,0x3a1a4a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
     atkBtn.setStrokeStyle(2,0x9b59b6);
-    sf(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-80,'⚔️',{fontSize:'22px'}).setOrigin(0.5).setDepth(82));
+    a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-80,'⚔️',{fontSize:'22px'}).setOrigin(0.5).setDepth(82));
     atkBtn.on('pointerdown',()=>{ if (!this.pl.autoMode && this.pl.alive && !this.done) this._swingAttack(this.pl.facing,false); });
 
-    const sk1Btn=sf(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x2a1a3a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
+    const sk1Btn=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x2a1a3a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
     sk1Btn.setStrokeStyle(2,0x6c3483);
-    sf(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'🌀',{fontSize:'18px'}).setOrigin(0.5).setDepth(82));
+    a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'🌀',{fontSize:'18px'}).setOrigin(0.5).setDepth(82));
     sk1Btn.on('pointerdown',()=>this._trySkill('spin'));
   }
 
@@ -2209,12 +2338,13 @@ class FieldScene extends Phaser.Scene {
     // 웨이브마다 몬스터 수 증가 (보스 고정)
     const spawnCount = this.isBoss ? sd.count : sd.count + (this.currentWave - 1) * 2;
 
-    // 웨이브 알림 (화면 고정)
+    // 웨이브 알림 (HUD 컨테이너에 추가)
     const wt=this.add.text(GAME_WIDTH/2, 80,
       this.isBoss ? '💀 보스 등장!' : `웨이브 ${this.currentWave} / ${this.TOTAL_WAVES}  🌊`, {
       fontSize:'22px', fill:this.isBoss?'#e74c3c':'#f1c40f',
       fontFamily:'Arial', fontStyle:'bold', stroke:'#000000', strokeThickness:4
-    }).setOrigin(0.5).setDepth(90).setScrollFactor(0).setAlpha(0);
+    }).setOrigin(0.5).setDepth(90).setAlpha(0);
+    this._hudCon.add(wt);
     this.tweens.add({targets:wt, alpha:1, duration:250, yoyo:true, hold:700, onComplete:()=>wt.destroy()});
 
     // 몬스터 스폰 — 플레이어 주변에 원형 배치, 더 넓은 거리
@@ -2243,11 +2373,13 @@ class FieldScene extends Phaser.Scene {
   _showStageTitle() {
     const t1=this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-24,`스테이지  ${this.stageId}`,{
       fontSize:'30px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold',stroke:'#000000',strokeThickness:5
-    }).setOrigin(0.5).setDepth(100).setScrollFactor(0).setAlpha(0);
+    }).setOrigin(0.5).setDepth(100).setAlpha(0);
+    this._hudCon.add(t1);
     const sub=this.isBoss?'💀  BOSS  STAGE':this.stageDef.enemies.map(e=>ENEMY_DEFS[e]?.label||e).join(' · ');
     const t2=this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+14,sub,{
       fontSize:'14px',fill:this.isBoss?'#e87070':'#888888',fontFamily:'Arial',stroke:'#000000',strokeThickness:3
-    }).setOrigin(0.5).setDepth(100).setScrollFactor(0).setAlpha(0);
+    }).setOrigin(0.5).setDepth(100).setAlpha(0);
+    this._hudCon.add(t2);
     this.tweens.add({targets:[t1,t2],alpha:1,duration:350,yoyo:true,hold:1000,onComplete:()=>{t1.destroy();t2.destroy();}});
   }
 
@@ -2262,11 +2394,25 @@ class FieldScene extends Phaser.Scene {
     }
   }
 
+  // ── 무기 숙련도 XP 추가
+  _addWeaponXP(type, xp) {
+    const prof = PLAYER_STATS.prof?.[type];
+    if (!prof) return;
+    prof.xp += xp;
+    while (prof.xp >= prof.xpNext) {
+      prof.xp -= prof.xpNext;
+      prof.lv++;
+      prof.xpNext = Math.floor(prof.xpNext * 1.6);
+      this._spawnPickupText(this.pl.x, this.pl.y-30, `⚔️ 검 숙련 Lv.${prof.lv}!`, '#f39c12');
+    }
+  }
+
   // ── 공격
   _swingAttack(angle, isMirrored) {
     if (!this.pl.alive||this.done) return;
     const p=this.pl, ARC=Phaser.Math.DegToRad(100), RANGE=115;
     this._drawSwingArc(p.x,p.y,angle,ARC,RANGE);
+    this._addWeaponXP('sword', 1);
     this.enemies.forEach(e=>{
       if (!e.alive) return;
       const dx=e.x-p.x, dy=e.y-p.y;
@@ -2284,6 +2430,7 @@ class FieldScene extends Phaser.Scene {
 
   _spinAttack() {
     if (!this.pl.alive||this.done) return;
+    this._addWeaponXP('sword', 3);
     const p=this.pl, RANGE=130;
     this._drawSpinFx(p.x,p.y,RANGE);
     this.enemies.forEach(e=>{
@@ -2370,24 +2517,25 @@ class FieldScene extends Phaser.Scene {
     FIELD_DATA.cleared.add(this.stageId);
     PLAYER_STATS.hp=this.pl.hp;
 
-    this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.65).setDepth(90).setScrollFactor(0);
-    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-80,'✨  STAGE  CLEAR!',{
+    const hc = (o) => { this._hudCon.add(o); return o; };
+    hc(this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.65).setDepth(90));
+    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-80,'✨  STAGE  CLEAR!',{
       fontSize:'34px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:5
-    }).setOrigin(0.5).setDepth(91).setScrollFactor(0);
+    }).setOrigin(0.5).setDepth(91));
     this.cameras.main.flash(400,255,220,60);
 
     PLAYER_STATS.exp+=this.stageDef.expReward;
-    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-44,`EXP  +${this.stageDef.expReward}`,{fontSize:'16px',fill:'#2ecc71',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
-    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-22,`Lv.${PLAYER_STATS.level}  HP:${this.pl.hp}/${this.pl.maxHp}`,{fontSize:'13px',fill:'#8888aa',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
+    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-44,`EXP  +${this.stageDef.expReward}`,{fontSize:'16px',fill:'#2ecc71',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
+    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-22,`Lv.${PLAYER_STATS.level}  HP:${this.pl.hp}/${this.pl.maxHp}`,{fontSize:'13px',fill:'#8888aa',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
 
     if (this.isBoss) {
-      this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+2,'🏆  골렘 수호자 처치!',{fontSize:'15px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
+      hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+2,'🏆  골렘 수호자 처치!',{fontSize:'15px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91));
       if (this.stageDef.drops?.length) {
         const drop=rollOnce(this.stageDef.drops);
         if (drop.id==='gold') { PLAYER_GOLD+=drop.qty; } else { playerInventory.add(drop.id,drop.qty); }
         const di=ITEM_DEFS[drop.id];
         const col=di?('#'+di.color.toString(16).padStart(6,'0')):'#ffffff';
-        this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+22,`${di?.icon||''}  ${di?.label||drop.id}  ×${drop.qty}  획득!`,{fontSize:'14px',fill:col,fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
+        hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+22,`${di?.icon||''}  ${di?.label||drop.id}  ×${drop.qty}  획득!`,{fontSize:'14px',fill:col,fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91));
       }
     }
 
@@ -2397,22 +2545,24 @@ class FieldScene extends Phaser.Scene {
   _gameOver() {
     if (this.done) return;
     this.done=true; PLAYER_STATS.hp=Math.max(1,this.pl.hp);
-    this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.75).setDepth(90).setScrollFactor(0);
-    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-60,'💀  GAME  OVER',{
+    const hc = (o) => { this._hudCon.add(o); return o; };
+    hc(this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.75).setDepth(90));
+    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-60,'💀  GAME  OVER',{
       fontSize:'34px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:5
-    }).setOrigin(0.5).setDepth(91).setScrollFactor(0);
-    this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-20,`스테이지  ${this.stageId}  실패`,{fontSize:'14px',fill:'#888888',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91).setScrollFactor(0);
+    }).setOrigin(0.5).setDepth(91));
+    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-20,`스테이지  ${this.stageId}  실패`,{fontSize:'14px',fill:'#888888',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
     this.cameras.main.shake(300,0.012);
     this._addResultButtons(false);
   }
 
   _addResultButtons(isWin) {
     const by=GAME_HEIGHT/2+54;
-    const r1=this.add.rectangle(GAME_WIDTH/2-86,by,152,40,isWin?0x0e2a1a:0x2a0e0e).setInteractive({useHandCursor:true}).setDepth(91).setStrokeStyle(2,isWin?0x2ecc71:0xe74c3c).setScrollFactor(0);
-    this.add.text(GAME_WIDTH/2-86,by,'다시 하기',{fontSize:'14px',fill:isWin?'#2ecc71':'#e74c3c',fontFamily:'Arial'}).setOrigin(0.5).setDepth(92).setScrollFactor(0);
+    const hc = (o) => { this._hudCon.add(o); return o; };
+    const r1=hc(this.add.rectangle(GAME_WIDTH/2-86,by,152,40,isWin?0x0e2a1a:0x2a0e0e).setInteractive({useHandCursor:true}).setDepth(91).setStrokeStyle(2,isWin?0x2ecc71:0xe74c3c));
+    hc(this.add.text(GAME_WIDTH/2-86,by,'다시 하기',{fontSize:'14px',fill:isWin?'#2ecc71':'#e74c3c',fontFamily:'Arial'}).setOrigin(0.5).setDepth(92));
     r1.on('pointerdown',()=>{ PLAYER_STATS.hp=PLAYER_STATS.maxHp; this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('FieldScene')); });
-    const r2=this.add.rectangle(GAME_WIDTH/2+86,by,152,40,0x0e0e2a).setInteractive({useHandCursor:true}).setDepth(91).setStrokeStyle(2,0x9b59b6).setScrollFactor(0);
-    this.add.text(GAME_WIDTH/2+86,by,'스테이지 선택',{fontSize:'14px',fill:'#c39bd3',fontFamily:'Arial'}).setOrigin(0.5).setDepth(92).setScrollFactor(0);
+    const r2=hc(this.add.rectangle(GAME_WIDTH/2+86,by,152,40,0x0e0e2a).setInteractive({useHandCursor:true}).setDepth(91).setStrokeStyle(2,0x9b59b6));
+    hc(this.add.text(GAME_WIDTH/2+86,by,'스테이지 선택',{fontSize:'14px',fill:'#c39bd3',fontFamily:'Arial'}).setOrigin(0.5).setDepth(92));
     r2.on('pointerdown',()=>this._exitToSelect());
   }
 
