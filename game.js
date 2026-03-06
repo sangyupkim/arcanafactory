@@ -7,8 +7,8 @@ const GAME_WIDTH  = 960;
 const GAME_HEIGHT = 540;
 
 // ── FieldScene 전용 확장 필드
-const FIELD_W    = 1440;   // 논리 필드 너비 (카메라 줌으로 더 넓게 보임)
-const FIELD_H    = 810;    // 논리 필드 높이
+const FIELD_W    = 2880;   // 논리 필드 너비 (카메라가 충분히 이동 가능)
+const FIELD_H    = 1620;   // 논리 필드 높이
 const FIELD_ZOOM = 0.72;   // 카메라 줌 (낮을수록 화면에 더 넓게 보임)
 
 const TILE      = 32;
@@ -2455,7 +2455,8 @@ class FieldScene extends Phaser.Scene {
     this.cameras.main.setZoom(FIELD_ZOOM);
     this.cameras.main.setBounds(0, 0, FIELD_W, FIELD_H);
     this.camTarget = this.add.rectangle(this.pl.x, this.pl.y, 2, 2, 0, 0).setDepth(0);
-    this.cameras.main.startFollow(this.camTarget, true, 0.10, 0.10);
+    this.cameras.main.centerOn(this.pl.x, this.pl.y);  // 즉시 플레이어 중심
+    this.cameras.main.startFollow(this.camTarget, true, 0.12, 0.12);
 
     this._buildHUD();
 
@@ -2497,17 +2498,17 @@ class FieldScene extends Phaser.Scene {
     this.add.rectangle(0,0,FIELD_W,FIELD_H,0x080e08).setOrigin(0).setDepth(0);
     const g=this.add.graphics().setDepth(0);
     g.lineStyle(1,0x0d190d,1);
-    for (let x=0;x<FIELD_W;x+=48) g.lineBetween(x,0,x,FIELD_H);
-    for (let y=0;y<FIELD_H;y+=48) g.lineBetween(0,y,FIELD_W,y);
+    for (let x=0;x<FIELD_W;x+=64) g.lineBetween(x,0,x,FIELD_H);
+    for (let y=0;y<FIELD_H;y+=64) g.lineBetween(0,y,FIELD_W,y);
     // 장식용 덤불/바위
-    for (let i=0;i<40;i++) {
+    for (let i=0;i<120;i++) {
       const rx=((i*97+13)%FIELD_W+FIELD_W)%FIELD_W;
       const ry=((i*53+7)%(FIELD_H)+FIELD_H)%FIELD_H;
-      g.fillStyle(0x0a180a,1); g.fillCircle(rx,ry,Phaser.Math.Between(6,20));
+      g.fillStyle(0x0a180a,1); g.fillCircle(rx,ry,Phaser.Math.Between(6,28));
     }
     // 필드 경계 표시
-    g.lineStyle(3,0x1a3a1a,0.8);
-    g.strokeRect(10,10,FIELD_W-20,FIELD_H-20);
+    g.lineStyle(4,0x1a3a1a,0.9);
+    g.strokeRect(20,20,FIELD_W-40,FIELD_H-40);
   }
 
   // ── HUD
@@ -3304,6 +3305,36 @@ class CraftScene extends Phaser.Scene {
     return recipe.cat==='판자' ? 3 : 1;
   }
 
+  // 기지 에너지저장고 전체 에너지 합계 (power 단위)
+  _countEstoreEnergy() {
+    let total = 0;
+    (BASE_DATA.buildings||[]).forEach(b=>{
+      if (!BUILDING_DEFS[b.type]?.isEnergyStorage || !b.storage) return;
+      b.storage.slots.forEach(sl=>{
+        if (sl?.itemId && ENERGY_ITEMS[sl.itemId]) total += sl.count * ENERGY_ITEMS[sl.itemId].power;
+      });
+    });
+    return total;
+  }
+
+  // 기지 에너지저장고에서 energy 소모
+  _consumeEstoreEnergyGlobal(amount) {
+    let rem = amount;
+    for (const b of (BASE_DATA.buildings||[])) {
+      if (!BUILDING_DEFS[b.type]?.isEnergyStorage || !b.storage) continue;
+      for (const sl of b.storage.slots) {
+        if (rem <= 0) break;
+        if (!sl?.itemId || !ENERGY_ITEMS[sl.itemId]) continue;
+        const power = ENERGY_ITEMS[sl.itemId].power;
+        const take = Math.min(sl.count, Math.ceil(rem / power));
+        sl.count -= take; rem -= take * power;
+        if (sl.count <= 0) { sl.itemId = null; sl.count = 0; }
+      }
+      if (rem <= 0) break;
+    }
+    return rem <= 0;
+  }
+
   // 인벤토리 + 기지 창고 합산 아이템 수
   _countTotal(itemId) {
     let n = playerInventory.count(itemId);
@@ -3334,8 +3365,27 @@ class CraftScene extends Phaser.Scene {
 
   _canCraft(recipe, qty=1) {
     const energyCost = this._craftEnergyCost(recipe) * qty;
-    return recipe.inputs.every(inp=>this._countTotal(inp.id) >= inp.qty * qty)
-      && playerInventory.count('energy_basic') >= energyCost;
+    const hasEnergy = this._countEstoreEnergy() >= energyCost
+                   || playerInventory.count('energy_basic') >= energyCost;
+    return recipe.inputs.every(inp=>this._countTotal(inp.id) >= inp.qty * qty) && hasEnergy;
+  }
+
+  // 에너지 소모: 에너지저장고 우선, 없으면 인벤토리 파편 사용
+  _consumeEnergy(amount) {
+    if (this._countEstoreEnergy() >= amount) {
+      this._consumeEstoreEnergyGlobal(amount);
+    } else {
+      playerInventory.consume('energy_basic', amount);
+    }
+  }
+
+  // 에너지 가용량 표시 문자열
+  _energyStatusStr(cost) {
+    const estore = this._countEstoreEnergy();
+    const inv = playerInventory.count('energy_basic');
+    if (estore >= cost) return `⚡ 저장고: ${estore}`;
+    if (inv >= cost) return `⚡ 파편: ${inv}개`;
+    return `⚡ 부족 (저장고:${estore} / 파편:${inv})`;
   }
 
   _buildRecipeList() {
@@ -3357,7 +3407,7 @@ class CraftScene extends Phaser.Scene {
         .setStrokeStyle(1,isSelected?0x9b59b6:(canCraft?0x2a4a2a:0x2a1a3a)));
       R(this.add.text(LX+10,ry+IH/2,outDef?.icon||'?',{fontSize:'22px'}).setOrigin(0,0.5));
       R(this.add.text(LX+42,ry+12,recipe.label,{fontSize:'12px',fill:canCraft?'#aaffaa':'#cccccc',fontFamily:'Arial'}));
-      R(this.add.text(LX+42,ry+28,`${recipe.time}  ⚡×${this._craftEnergyCost(recipe)}`,{fontSize:'9px',fill:'#446644',fontFamily:'Arial'}));
+      R(this.add.text(LX+42,ry+28,`${recipe.time}  ⚡${this._craftEnergyCost(recipe)}`,{fontSize:'9px',fill:'#446644',fontFamily:'Arial'}));
 
       bg.on('pointerover',()=>{if(!isSelected) bg.setFillStyle(canCraft?0x142814:0x1a0f28);});
       bg.on('pointerout', ()=>{if(!isSelected) bg.setFillStyle(canCraft?0x0a140a:0x100a18);});
@@ -3404,21 +3454,31 @@ class CraftScene extends Phaser.Scene {
     R(this.add.text(DX+pad,DY+110,'필요 재료',{fontSize:'10px',fill:'#555577',fontFamily:'Arial'}));
     R(this.add.rectangle(DX+pad,DY+122,DW-pad*2,1,0x2a1a4a).setOrigin(0));
 
-    const allInputs=[
-      ...recipe.inputs.map(inp=>({id:inp.id, need:inp.qty*qty, energy:false})),
-      {id:'energy_basic', need:ec*qty, energy:true}
-    ];
+    // 에너지 가용 정보
+    const estoreAmt = this._countEstoreEnergy();
+    const invAmt    = playerInventory.count('energy_basic');
+    const energyNeed= ec * qty;
+    const energyOk  = estoreAmt >= energyNeed || invAmt >= energyNeed;
+    const energySrc = estoreAmt >= energyNeed ? `저장고 ${estoreAmt}` : `파편 ${invAmt}`;
+
+    const allInputs=recipe.inputs.map(inp=>({id:inp.id, need:inp.qty*qty, energy:false}));
     let curY=DY+128;
     allInputs.forEach(inp=>{
       const def=ITEM_DEFS[inp.id];
-      const have=inp.energy ? playerInventory.count(inp.id) : this._countTotal(inp.id);
+      const have=this._countTotal(inp.id);
       const ok=have>=inp.need;
       R(this.add.rectangle(DX+pad,curY,DW-pad*2,40,ok?0x081408:0x140808).setOrigin(0).setStrokeStyle(1,ok?0x2a4a2a:0x3a1a1a));
-      R(this.add.text(DX+pad+8,curY+20,def?.icon||'⚡',{fontSize:'20px'}).setOrigin(0,0.5));
+      R(this.add.text(DX+pad+8,curY+20,def?.icon||'?',{fontSize:'20px'}).setOrigin(0,0.5));
       R(this.add.text(DX+pad+36,curY+10,def?.label||inp.id,{fontSize:'12px',fill:'#cccccc',fontFamily:'Arial'}));
       R(this.add.text(DX+pad+36,curY+26,`보유: ${have}  /  필요: ${inp.need}`,{fontSize:'10px',fill:ok?'#66cc66':'#cc6666',fontFamily:'Arial'}));
       curY+=44;
     });
+    // 에너지 행
+    R(this.add.rectangle(DX+pad,curY,DW-pad*2,40,energyOk?0x081408:0x140808).setOrigin(0).setStrokeStyle(1,energyOk?0x2a4a2a:0x3a1a1a));
+    R(this.add.text(DX+pad+8,curY+20,'⚡',{fontSize:'20px'}).setOrigin(0,0.5));
+    R(this.add.text(DX+pad+36,curY+10,`에너지 (저장고 또는 파편)`,{fontSize:'11px',fill:'#cccccc',fontFamily:'Arial'}));
+    R(this.add.text(DX+pad+36,curY+26,`${energySrc}  /  필요: ${energyNeed}`,{fontSize:'10px',fill:energyOk?'#66cc66':'#cc6666',fontFamily:'Arial'}));
+    curY+=44;
 
     // ── 수량 선택
     curY+=8;
@@ -3475,11 +3535,11 @@ class CraftScene extends Phaser.Scene {
     if (!this._canCraft(recipe, qty)) {
       const ec=this._craftEnergyCost(recipe)*qty;
       if (!recipe.inputs.every(inp=>this._countTotal(inp.id)>=inp.qty*qty)) this._showHint('❌ 재료 부족!');
-      else this._showHint(`❌ 에너지 파편 ${ec}개 필요!`);
+      else this._showHint(`❌ 에너지 부족! (저장고 또는 에너지 파편 필요)`);
       return;
     }
     // 재료 즉시 소모
-    playerInventory.consume('energy_basic', this._craftEnergyCost(recipe)*qty);
+    this._consumeEnergy(this._craftEnergyCost(recipe)*qty);
     recipe.inputs.forEach(inp=>this._consumeTotal(inp.id, inp.qty*qty));
 
     // 제작 시작
