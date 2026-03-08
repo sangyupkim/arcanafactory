@@ -2489,6 +2489,8 @@ class FieldScene extends Phaser.Scene {
     this.joystick.stick.setScrollFactor(0).setDepth(86);
     this._buildMobileButtons();
     this._showStageTitle();
+    // HUD 컨테이너 초기 위치 동기화 (카메라 스크롤 기반)
+    this._hudCon.setPosition(this.cameras.main.scrollX, this.cameras.main.scrollY);
     // 스테이지 타이틀 후 웨이브 타이머 시작
     this.time.delayedCall(1600, ()=>{ this.waveActive = true; });
   }
@@ -2514,7 +2516,7 @@ class FieldScene extends Phaser.Scene {
   // ── HUD
   // _hudCon: scrollFactor(0) + scale(1/FIELD_ZOOM) → 자식 좌표 = 화면 픽셀 좌표
   _buildHUD() {
-    this._hudCon = this.add.container(0, 0).setScrollFactor(0).setDepth(79).setScale(1/FIELD_ZOOM);
+    this._hudCon = this.add.container(0, 0).setDepth(79).setScale(1/FIELD_ZOOM);
     const a = (o) => { this._hudCon.add(o); return o; };
 
     a(this.add.rectangle(0,0,GAME_WIDTH,52,0x08000f,0.96).setOrigin(0).setDepth(80));
@@ -2927,6 +2929,8 @@ class FieldScene extends Phaser.Scene {
   update(t,delta) {
     const dt=delta/1000;
     const p=this.pl;
+    // HUD 컨테이너를 카메라 스크롤에 동기화 → 터치 히트 영역과 렌더 위치 일치
+    if (this._hudCon) this._hudCon.setPosition(this.cameras.main.scrollX, this.cameras.main.scrollY);
     this.joystick.update(this);
     if (this.done) return;
 
