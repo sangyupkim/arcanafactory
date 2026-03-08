@@ -3365,27 +3365,21 @@ class CraftScene extends Phaser.Scene {
 
   _canCraft(recipe, qty=1) {
     const energyCost = this._craftEnergyCost(recipe) * qty;
-    const hasEnergy = this._countEstoreEnergy() >= energyCost
-                   || playerInventory.count('energy_basic') >= energyCost;
+    const hasEnergy = this._countEstoreEnergy() >= energyCost;
     return recipe.inputs.every(inp=>this._countTotal(inp.id) >= inp.qty * qty) && hasEnergy;
   }
 
-  // 에너지 소모: 에너지저장고 우선, 없으면 인벤토리 파편 사용
+  // 에너지 소모: 에너지저장고에서만 소모
   _consumeEnergy(amount) {
-    if (this._countEstoreEnergy() >= amount) {
-      this._consumeEstoreEnergyGlobal(amount);
-    } else {
-      playerInventory.consume('energy_basic', amount);
-    }
+    this._consumeEstoreEnergyGlobal(amount);
   }
 
   // 에너지 가용량 표시 문자열
   _energyStatusStr(cost) {
     const estore = this._countEstoreEnergy();
-    const inv = playerInventory.count('energy_basic');
-    if (estore >= cost) return `⚡ 저장고: ${estore}`;
-    if (inv >= cost) return `⚡ 파편: ${inv}개`;
-    return `⚡ 부족 (저장고:${estore} / 파편:${inv})`;
+    if (estore === 0) return '🔋 에너지저장고 미연결';
+    if (estore >= cost) return `🔋 저장고: ${estore}`;
+    return `🔋 부족 (저장고:${estore} / 필요:${cost})`;
   }
 
   _buildRecipeList() {
@@ -3454,14 +3448,12 @@ class CraftScene extends Phaser.Scene {
     R(this.add.text(DX+pad,DY+110,'필요 재료',{fontSize:'10px',fill:'#555577',fontFamily:'Arial'}));
     R(this.add.rectangle(DX+pad,DY+122,DW-pad*2,1,0x2a1a4a).setOrigin(0));
 
-    // 에너지 가용 정보
+    // 에너지저장고 가용 정보
     const estoreAmt = this._countEstoreEnergy();
-    const invAmt    = playerInventory.count('energy_basic');
     const energyNeed= ec * qty;
-    const energyOk  = estoreAmt >= energyNeed || invAmt >= energyNeed;
-    const energySrc = estoreAmt >= energyNeed ? `저장고 ${estoreAmt}` : `파편 ${invAmt}`;
+    const energyOk  = estoreAmt >= energyNeed;
 
-    const allInputs=recipe.inputs.map(inp=>({id:inp.id, need:inp.qty*qty, energy:false}));
+    const allInputs=recipe.inputs.map(inp=>({id:inp.id, need:inp.qty*qty}));
     let curY=DY+128;
     allInputs.forEach(inp=>{
       const def=ITEM_DEFS[inp.id];
@@ -3473,12 +3465,18 @@ class CraftScene extends Phaser.Scene {
       R(this.add.text(DX+pad+36,curY+26,`보유: ${have}  /  필요: ${inp.need}`,{fontSize:'10px',fill:ok?'#66cc66':'#cc6666',fontFamily:'Arial'}));
       curY+=44;
     });
-    // 에너지 행
-    R(this.add.rectangle(DX+pad,curY,DW-pad*2,40,energyOk?0x081408:0x140808).setOrigin(0).setStrokeStyle(1,energyOk?0x2a4a2a:0x3a1a1a));
-    R(this.add.text(DX+pad+8,curY+20,'⚡',{fontSize:'20px'}).setOrigin(0,0.5));
-    R(this.add.text(DX+pad+36,curY+10,`에너지 (저장고 또는 파편)`,{fontSize:'11px',fill:'#cccccc',fontFamily:'Arial'}));
-    R(this.add.text(DX+pad+36,curY+26,`${energySrc}  /  필요: ${energyNeed}`,{fontSize:'10px',fill:energyOk?'#66cc66':'#cc6666',fontFamily:'Arial'}));
-    curY+=44;
+    // 에너지저장고 상태 배너 (입력칸 아닌 연결 상태 표시)
+    const bannerBg = estoreAmt===0 ? 0x1a0808 : (energyOk ? 0x081408 : 0x140a04);
+    const bannerBd = estoreAmt===0 ? 0xcc3333 : (energyOk ? 0x2a4a2a : 0xcc6633);
+    const bannerTxt = estoreAmt===0
+      ? '⚠ 에너지저장고 미연결 — 제작 불가'
+      : energyOk
+        ? `🔋 에너지저장고: ${estoreAmt}  /  필요: ${energyNeed}`
+        : `🔋 에너지저장고: ${estoreAmt}  /  필요: ${energyNeed} — 에너지 부족`;
+    const bannerCol = estoreAmt===0 ? '#ff6666' : (energyOk ? '#66cc66' : '#ffaa44');
+    R(this.add.rectangle(DX+pad,curY,DW-pad*2,34,bannerBg).setOrigin(0).setStrokeStyle(1,bannerBd));
+    R(this.add.text(DX+pad+(DW-pad*2)/2,curY+17,bannerTxt,{fontSize:'11px',fill:bannerCol,fontFamily:'Arial'}).setOrigin(0.5,0.5));
+    curY+=38;
 
     // ── 수량 선택
     curY+=8;
@@ -3506,9 +3504,8 @@ class CraftScene extends Phaser.Scene {
 
     // ── 제작 버튼
     curY+=22;
-    const missingEnergy=!recipe.inputs.every(inp=>this._countTotal(inp.id)>=inp.qty*qty) ? false
-      : playerInventory.count('energy_basic')<ec*qty;
-    const btnLbl=crafting?'⚗️ 제작 중...':(canCraft?`⚗️ ×${qty} 제작하기`:(missingEnergy?'⚡ 에너지 부족':'재료 부족'));
+    const missingEnergy = recipe.inputs.every(inp=>this._countTotal(inp.id)>=inp.qty*qty) && !energyOk;
+    const btnLbl=crafting?'⚗️ 제작 중...':(canCraft?`⚗️ ×${qty} 제작하기`:(missingEnergy?'🔋 에너지저장고 부족':'재료 부족'));
     const btnCol=crafting?0x2a2a2a:(canCraft?0x1a4a1a:0x1e1e1e);
     const btnBrd=crafting?0x4a4a4a:(canCraft?0x2ecc71:0x333333);
     const cb=R(this.add.rectangle(midX,curY,220,36,btnCol).setOrigin(0.5)
@@ -3535,7 +3532,7 @@ class CraftScene extends Phaser.Scene {
     if (!this._canCraft(recipe, qty)) {
       const ec=this._craftEnergyCost(recipe)*qty;
       if (!recipe.inputs.every(inp=>this._countTotal(inp.id)>=inp.qty*qty)) this._showHint('❌ 재료 부족!');
-      else this._showHint(`❌ 에너지 부족! (저장고 또는 에너지 파편 필요)`);
+      else this._showHint(`❌ 에너지저장고 에너지 부족! (필요: ${ec})`);
       return;
     }
     // 재료 즉시 소모
