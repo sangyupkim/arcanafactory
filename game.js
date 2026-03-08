@@ -405,6 +405,17 @@ const townStorage     = new ItemStorage('마을 창고');
 // 골드 — 인벤토리 저장 안됨, 별도 글로벌 변수
 let PLAYER_GOLD = 0;
 
+// 제작소 영속 상태 (BaseScene ↔ CraftScene 전환 시 유지)
+const CRAFT_STATE = {
+  active: false,          // 제작 진행 중 여부
+  recipeId: null,         // 진행 중인 레시피 (recipe 객체 참조)
+  qty: 1,                 // 제작 수량
+  startMs: 0,             // Date.now() 기준 시작 시각
+  durationMs: 0,          // 총 제작 소요 시간 (ms)
+  outId: null,            // 완료 시 지급할 아이템 ID
+  outQty: 0,              // 완료 시 지급할 수량
+};
+
 class InventoryUI {
   constructor(scene, inv, options = {}) {
     this.scene = scene; this.inv = inv;
@@ -1535,8 +1546,8 @@ class BaseScene extends Phaser.Scene {
   _openPopup(id) {
     if (this.buildMode) return;
     const b=this.buildings.find(b=>b.id===id); if (!b) return;
-    // 제작소/대장간은 씬 전환으로 처리
-    if (b.type==='workshop') { this.scene.start('CraftScene'); return; }
+    // 제작소/대장간은 BaseScene 위에 오버레이로 실행 (sleep/launch)
+    if (b.type==='workshop') { this.scene.sleep('BaseScene'); this.scene.launch('CraftScene'); return; }
     if (b.type==='smithy')   { this.scene.start('SmithScene'); return; }
     this.activeBuilding=b;
     const def=BUILDING_DEFS[b.type];
@@ -2484,24 +2495,43 @@ class FieldScene extends Phaser.Scene {
       if (Math.abs(px - this._btnAuto.x) < this._btnAuto.hw && Math.abs(py - this._btnAuto.y) < this._btnAuto.hh) { this._toggleAuto(); return; }
       // 스킬/공격 버튼
       if (this.pl.alive && !this.done) {
-        if (Math.hypot(px - this._btnAtk.x, py - this._btnAtk.y) < this._btnAtk.r) { if (!this.pl.autoMode) this._swingAttack(this.pl.facing, false); return; }
+        if (Math.hypot(px - this._btnAtk.x, py - this._btnAtk.y) < this._btnAtk.r) { if (!this.pl.autoMode) { this._swingAttack(this.pl.facing, false); this._atkHeld = true; this._atkHeldPointerId = ptr.id; this._atkCooldown = 0; } return; }
         if (Math.hypot(px - this._btnSk1.x, py - this._btnSk1.y) < this._btnSk1.r) { this._trySkill('spin'); return; }
         if (Math.hypot(px - this._btnSk2.x, py - this._btnSk2.y) < this._btnSk2.r) { this._trySkill('dash'); return; }
         if (Math.hypot(px - this._btnSk3.x, py - this._btnSk3.y) < this._btnSk3.r) { this._trySkill('barrier'); return; }
         if (Math.hypot(px - this._btnPot.x, py - this._btnPot.y) < this._btnPot.r) { this._usePotion(); return; }
       }
-      // 기본 공격 (필드 탭 — worldX/Y 사용)
-      if (!this.pl.autoMode && this.pl.alive && !this.done) {
+      // 기본 공격 (필드 탭 — worldX/Y 사용) + 홀드 공격 시작
+      // 조이스틱 영역(화면 왼쪽 하단)은 제외
+      const isJoystickZone = px < GAME_WIDTH / 2 && py > GAME_HEIGHT / 2;
+      if (!this.pl.autoMode && this.pl.alive && !this.done && !isJoystickZone) {
         const angle = Math.atan2(ptr.worldY - this.pl.y, ptr.worldX - this.pl.x);
         this.pl.facing = angle;
         this._swingAttack(angle, false);
+        this._atkHeld = true;
+        this._atkHeldPointerId = ptr.id;
+        this._atkCooldown = 0;
       }
     });
+    // 홀드 해제
+    this.input.on('pointerup', (ptr) => {
+      if (ptr.id === this._atkHeldPointerId) { this._atkHeld = false; this._atkHeldPointerId = -1; }
+    });
+    this.input.on('pointermove', (ptr) => {
+      if (this._atkHeld && ptr.id === this._atkHeldPointerId) {
+        this._atkHeldPtr = ptr;
+      }
+    });
+    this._atkHeld = false; this._atkHeldPointerId = -1; this._atkHeldPtr = null; this._atkCooldown = 0;
+
     this.key1.on('down',   ()=>this._trySkill('spin'));
     this.key2.on('down',   ()=>this._trySkill('dash'));
     this.key3.on('down',   ()=>this._trySkill('barrier'));
     this.keyH.on('down',   ()=>this._usePotion());
     this.keyEsc.on('down', ()=>this._exitToSelect());
+
+    // 멀티터치: 조이스틱 + 공격 동시 가능
+    this.input.addPointer(2);
 
     // 조이스틱: zoom 전달 → world 좌표 = screen 좌표 / FIELD_ZOOM
     this.joystick = new VirtualJoystick(this, 80, GAME_HEIGHT-70, FIELD_ZOOM);
@@ -2990,7 +3020,24 @@ class FieldScene extends Phaser.Scene {
         if (this.joystick.active) { vx=this.joystick.vx*p.spd; vy=this.joystick.vy*p.spd; }
         if (vx&&vy) { vx*=0.707; vy*=0.707; }
         p.x+=vx*dt; p.y+=vy*dt;
-        p.facing=Math.atan2(this.input.activePointer.worldY-p.y,this.input.activePointer.worldX-p.x);
+        // 조이스틱 이동 중이면 이동방향으로 공격방향 설정
+        if (this.joystick.active && (this.joystick.vx!==0||this.joystick.vy!==0)) {
+          p.facing=Math.atan2(this.joystick.vy,this.joystick.vx);
+        } else {
+          p.facing=Math.atan2(this.input.activePointer.worldY-p.y,this.input.activePointer.worldX-p.x);
+        }
+        // 마우스/터치 홀드 연속 공격 (공격속도 기반 쿨다운)
+        if (this._atkHeld && this.pl.alive && !this.done) {
+          this._atkCooldown -= delta;
+          if (this._atkCooldown <= 0) {
+            const atkInterval = Math.max(150, 1000 - p.spd * 2); // spd가 높을수록 빠름
+            this._atkCooldown = atkInterval;
+            const ptr = this._atkHeldPtr || this.input.activePointer;
+            const angle = Math.atan2(ptr.worldY - p.y, ptr.worldX - p.x);
+            p.facing = angle;
+            this._swingAttack(angle, false);
+          }
+        }
       }
       p.x=Phaser.Math.Clamp(p.x, 20, FIELD_W-20);
       p.y=Phaser.Math.Clamp(p.y, 30, FIELD_H-20);
@@ -3273,6 +3320,24 @@ class CraftScene extends Phaser.Scene {
     this.crafting       = false;
     this.craftTimer     = null;
 
+    // ── CRAFT_STATE 복원: 기지로 돌아갔다가 다시 열어도 제작 유지
+    if (CRAFT_STATE.active) {
+      const elapsed = Date.now() - CRAFT_STATE.startMs;
+      const remaining = CRAFT_STATE.durationMs - elapsed;
+      if (remaining > 0) {
+        // 아직 완료 안됨 → 타이머 재생성
+        this.crafting = true;
+        this.craftInProgress = { recipe: CRAFT_STATE.recipeId, qty: CRAFT_STATE.qty };
+        this.craftStartTime = this.time.now - elapsed;
+        this.craftDuration = CRAFT_STATE.durationMs;
+        this.craftTimer = this.time.delayedCall(remaining, ()=>this._completeCraft());
+      } else {
+        // 이미 완료됐어야 하는 경우 → 즉시 지급
+        playerInventory.add(CRAFT_STATE.outId, CRAFT_STATE.outQty);
+        CRAFT_STATE.active = false;
+      }
+    }
+
     // ── 배경
     this.add.rectangle(0,0,GAME_WIDTH,GAME_HEIGHT,0x060010).setOrigin(0);
 
@@ -3283,7 +3348,7 @@ class CraftScene extends Phaser.Scene {
 
     const backBtn=this.add.rectangle(56,26,90,30,0x1a0a1a).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x4a2c6a);
     this.add.text(56,26,'← 기지로',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5);
-    backBtn.on('pointerdown',()=>{ this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('BaseScene')); });
+    backBtn.on('pointerdown',()=>{ this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>{ this.scene.stop('CraftScene'); this.scene.wake('BaseScene'); }); });
 
     this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setStrokeStyle(1,0x888800);
     this.goldText=this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5);
@@ -3314,7 +3379,7 @@ class CraftScene extends Phaser.Scene {
     this.keyEsc.on('down',()=>{
       if (this.inventoryUI.visible){this.inventoryUI.hide();return;}
       this.cameras.main.fadeOut(250);
-      this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('BaseScene'));
+      this.cameras.main.once('camerafadeoutcomplete',()=>{ this.scene.stop('CraftScene'); this.scene.wake('BaseScene'); });
     });
 
     this.hintTxt=this.add.text(GAME_WIDTH/2,GAME_HEIGHT-14,'I: 인벤토리  ESC: 기지로',{fontSize:'10px',fill:'#334433',fontFamily:'Arial'}).setOrigin(0.5).setDepth(5);
@@ -3574,6 +3639,15 @@ class CraftScene extends Phaser.Scene {
     this.craftStartTime=this.time.now;
     this.craftDuration=this._parseTimeMs(recipe.time)*qty;
 
+    // 글로벌 상태에 저장 (씬 전환 후에도 복원 가능)
+    CRAFT_STATE.active     = true;
+    CRAFT_STATE.recipeId   = recipe;
+    CRAFT_STATE.qty        = qty;
+    CRAFT_STATE.startMs    = Date.now();
+    CRAFT_STATE.durationMs = this.craftDuration;
+    CRAFT_STATE.outId      = recipe.out.id;
+    CRAFT_STATE.outQty     = recipe.out.qty * qty;
+
     this.craftTimer=this.time.delayedCall(this.craftDuration,()=>this._completeCraft());
     this._buildRecipeList(); this._buildRecipeDetail(recipe);
     if (this.inventoryUI?.visible) this.inventoryUI.refresh();
@@ -3585,6 +3659,7 @@ class CraftScene extends Phaser.Scene {
     const d=ITEM_DEFS[recipe.out.id];
     this._showHint(`✅ ${d?.icon||''} ${d?.label||recipe.out.id} ×${recipe.out.qty*qty} 제작 완료!`);
     this.crafting=false; this.craftTimer=null; this.craftInProgress=null;
+    CRAFT_STATE.active=false;
     this._buildRecipeList(); this._buildRecipeDetail(recipe);
     if (this.inventoryUI?.visible) this.inventoryUI.refresh();
   }
