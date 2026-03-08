@@ -2469,11 +2469,31 @@ class FieldScene extends Phaser.Scene {
     this.keyH    = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.H);
     this.keyEsc  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
-    // 마우스/터치 클릭 → 기본 공격 (worldX/Y 사용 — 카메라 줌 대응)
-    this.input.on('pointerdown',(ptr)=>{
+    // 터치/클릭 입력 — ptr.x/y (스크린 좌표)로 버튼 판정, 나머지는 기본 공격
+    this.input.on('pointerdown', (ptr) => {
+      const px = ptr.x, py = ptr.y;
+      // 결과 버튼 (클리어/게임오버 화면)
+      if (this._resultBtns) {
+        for (const btn of this._resultBtns) {
+          if (Math.abs(px - btn.x) < btn.hw && Math.abs(py - btn.y) < btn.hh) { btn.fn(); return; }
+        }
+      }
+      // 나가기 버튼
+      if (Math.abs(px - this._btnBack.x) < this._btnBack.hw && Math.abs(py - this._btnBack.y) < this._btnBack.hh) { this._exitToSelect(); return; }
+      // 자동/수동 버튼
+      if (Math.abs(px - this._btnAuto.x) < this._btnAuto.hw && Math.abs(py - this._btnAuto.y) < this._btnAuto.hh) { this._toggleAuto(); return; }
+      // 스킬/공격 버튼
+      if (this.pl.alive && !this.done) {
+        if (Math.hypot(px - this._btnAtk.x, py - this._btnAtk.y) < this._btnAtk.r) { if (!this.pl.autoMode) this._swingAttack(this.pl.facing, false); return; }
+        if (Math.hypot(px - this._btnSk1.x, py - this._btnSk1.y) < this._btnSk1.r) { this._trySkill('spin'); return; }
+        if (Math.hypot(px - this._btnSk2.x, py - this._btnSk2.y) < this._btnSk2.r) { this._trySkill('dash'); return; }
+        if (Math.hypot(px - this._btnSk3.x, py - this._btnSk3.y) < this._btnSk3.r) { this._trySkill('barrier'); return; }
+        if (Math.hypot(px - this._btnPot.x, py - this._btnPot.y) < this._btnPot.r) { this._usePotion(); return; }
+      }
+      // 기본 공격 (필드 탭 — worldX/Y 사용)
       if (!this.pl.autoMode && this.pl.alive && !this.done) {
-        const angle=Math.atan2(ptr.worldY-this.pl.y, ptr.worldX-this.pl.x);
-        this.pl.facing=angle;
+        const angle = Math.atan2(ptr.worldY - this.pl.y, ptr.worldX - this.pl.x);
+        this.pl.facing = angle;
         this._swingAttack(angle, false);
       }
     });
@@ -2487,10 +2507,7 @@ class FieldScene extends Phaser.Scene {
     this.joystick = new VirtualJoystick(this, 80, GAME_HEIGHT-70, FIELD_ZOOM);
     this.joystick.base.setScrollFactor(0).setDepth(85);
     this.joystick.stick.setScrollFactor(0).setDepth(86);
-    this._buildMobileButtons();
     this._showStageTitle();
-    // HUD 컨테이너 초기 위치 동기화 (카메라 스크롤 기반)
-    this._hudCon.setPosition(this.cameras.main.scrollX, this.cameras.main.scrollY);
     // 스테이지 타이틀 후 웨이브 타이머 시작
     this.time.delayedCall(1600, ()=>{ this.waveActive = true; });
   }
@@ -2513,74 +2530,85 @@ class FieldScene extends Phaser.Scene {
     g.strokeRect(20,20,FIELD_W-40,FIELD_H-40);
   }
 
-  // ── HUD
-  // _hudCon: scrollFactor(0) + scale(1/FIELD_ZOOM) → 자식 좌표 = 화면 픽셀 좌표
+  // ── HUD (새로운 방식)
+  // 각 요소에 직접 setScrollFactor(0) 적용 + 화면 좌표를 sc(v)=v/FIELD_ZOOM 으로 변환
+  // 버튼 입력은 ptr.x/y (스크린 좌표) 기반 수동 판정 → camera scroll 문제 완전 해소
   _buildHUD() {
-    this._hudCon = this.add.container(0, 0).setDepth(79).setScale(1/FIELD_ZOOM);
-    const a = (o) => { this._hudCon.add(o); return o; };
+    const Z = FIELD_ZOOM;
+    const sc = v => v / Z;           // 화면 px → world 좌표 (scrollFactor 0 요소)
+    const fs = v => `${Math.round(v / Z)}px`;  // 화면 px 폰트 → world 폰트 크기
+    const sf = o => o.setScrollFactor(0);      // shortcut
+    const W = GAME_WIDTH, H = GAME_HEIGHT;
 
-    a(this.add.rectangle(0,0,GAME_WIDTH,52,0x08000f,0.96).setOrigin(0).setDepth(80));
-    a(this.add.rectangle(0,51,GAME_WIDTH,2,0xe74c3c).setOrigin(0).setDepth(80));
+    // ── 상단 바 배경 (화면 y: 0~54px)
+    sf(this.add.rectangle(0, 0, sc(W), sc(54), 0x08000f, 0.96).setOrigin(0).setDepth(80));
+    sf(this.add.rectangle(0, sc(54), sc(W), sc(2), 0xe74c3c).setOrigin(0).setDepth(80));
 
-    const backBtn=a(this.add.rectangle(52,26,90,30,0x180a18).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x4a2c6a));
-    a(this.add.text(52,26,'← 나가기',{fontSize:'12px',fill:'#887799',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
-    backBtn.on('pointerdown',()=>this._exitToSelect());
+    // 나가기 버튼 (화면 center: 52, 27 / 90×30)
+    sf(this.add.rectangle(sc(52), sc(27), sc(90), sc(30), 0x180a18).setOrigin(0.5).setDepth(81).setStrokeStyle(sc(1), 0x4a2c6a));
+    sf(this.add.text(sc(52), sc(27), '← 나가기', {fontSize:fs(12), fill:'#887799', fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
+    this._btnBack = {x:52, y:27, hw:45, hh:15};
 
-    a(this.add.text(GAME_WIDTH/2,15,`스테이지  ${this.stageId}`,{fontSize:'14px',fill:'#e87070',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(81));
-    a(this.add.text(GAME_WIDTH/2,34,this.stageDef.world,{fontSize:'10px',fill:'#3a5a3a',fontFamily:'Arial'}).setOrigin(0.5).setDepth(81));
+    // HP 바
+    sf(this.add.text(sc(113), sc(18), 'HP', {fontSize:fs(11), fill:'#887788', fontFamily:'Arial'}).setOrigin(1, 0.5).setDepth(81));
+    this.hpBarBg = sf(this.add.rectangle(sc(116), sc(18), sc(180), sc(12), 0x2a0e0e).setOrigin(0, 0.5).setDepth(81));
+    this.hpBar   = sf(this.add.rectangle(sc(116), sc(18), sc(180), sc(12), 0xe74c3c).setOrigin(0, 0.5).setDepth(82));
+    this.hpText  = sf(this.add.text(sc(300), sc(18), '', {fontSize:fs(10), fill:'#ccaaaa', fontFamily:'Arial'}).setOrigin(0, 0.5).setDepth(83));
 
-    a(this.add.text(113,18,'HP',{fontSize:'11px',fill:'#887788',fontFamily:'Arial'}).setOrigin(1,0.5).setDepth(81));
-    this.hpBarBg=a(this.add.rectangle(116,18,180,12,0x2a0e0e).setOrigin(0,0.5).setDepth(81));
-    this.hpBar  =a(this.add.rectangle(116,18,180,12,0xe74c3c).setOrigin(0,0.5).setDepth(82));
-    this.hpText =a(this.add.text(300,18,'',{fontSize:'10px',fill:'#ccaaaa',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(83));
+    // 방어막 바
+    this.barrierBarBg = sf(this.add.rectangle(sc(116), sc(36), sc(180), sc(8), 0x0a1a2a).setOrigin(0,0.5).setDepth(81).setVisible(false));
+    this.barrierBar   = sf(this.add.rectangle(sc(116), sc(36), sc(180), sc(8), 0x3498db).setOrigin(0,0.5).setDepth(82).setVisible(false));
+    sf(this.add.text(sc(113), sc(36), '방어막', {fontSize:fs(9), fill:'#3498db', fontFamily:'Arial'}).setOrigin(1,0.5).setDepth(82));
 
-    this.autoBtn=a(this.add.rectangle(GAME_WIDTH-184,26,90,28,0x0e1828).setInteractive({useHandCursor:true}).setDepth(81).setStrokeStyle(1,0x3498db));
-    this.autoBtnLbl=a(this.add.text(GAME_WIDTH-184,26,'수동 모드',{fontSize:'11px',fill:'#4a8ab8',fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
-    this.autoBtn.on('pointerdown',()=>this._toggleAuto());
+    // 스테이지 정보 (중앙 상단)
+    sf(this.add.text(sc(W/2), sc(16), `스테이지  ${this.stageId}`, {fontSize:fs(14), fill:'#e87070', fontFamily:'Arial', fontStyle:'bold'}).setOrigin(0.5).setDepth(81));
+    sf(this.add.text(sc(W/2), sc(35), this.stageDef.world, {fontSize:fs(10), fill:'#3a5a3a', fontFamily:'Arial'}).setOrigin(0.5).setDepth(81));
+    this.enemyCounter = sf(this.add.text(sc(W/2-140), sc(38), '', {fontSize:fs(11), fill:'#f1c40f', fontFamily:'Arial'}).setOrigin(0, 0.5).setDepth(81));
 
-    this.enemyCounter=a(this.add.text(GAME_WIDTH/2-140,36,'',{fontSize:'11px',fill:'#f1c40f',fontFamily:'Arial'}).setOrigin(0,0.5).setDepth(81));
-    a(this.add.rectangle(GAME_WIDTH-4,4,120,22,0x2a2000,0.9).setOrigin(1,0).setDepth(82).setStrokeStyle(1,0x888800));
-    this.goldText=a(this.add.text(GAME_WIDTH-8,15,'',{fontSize:'12px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(1,0.5).setDepth(83));
+    // 자동/수동 버튼 (화면 center: W-184, 27)
+    this.autoBtn    = sf(this.add.rectangle(sc(W-184), sc(27), sc(90), sc(28), 0x0e1828).setOrigin(0.5).setDepth(81).setStrokeStyle(sc(1), 0x3498db));
+    this.autoBtnLbl = sf(this.add.text(sc(W-184), sc(27), '수동 모드', {fontSize:fs(11), fill:'#4a8ab8', fontFamily:'Arial'}).setOrigin(0.5).setDepth(82));
+    this._btnAuto = {x:W-184, y:27, hw:45, hh:14};
 
-    // 스킬 쿨타임 오버레이
-    this.skill1Bg=null;
-    this.skill1CdOverlay=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x000000,0).setDepth(91));
-    this.skill1CdText=a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'',{fontSize:'13px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(92));
-    this.skill2CdOverlay=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-228,24,0x000000,0).setDepth(91));
-    this.skill2CdText=a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-228,'',{fontSize:'11px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(92));
-    this.skill3CdOverlay=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-292,24,0x000000,0).setDepth(91));
-    this.skill3CdText=a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-292,'',{fontSize:'11px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(92));
-    this.barrierBarBg=a(this.add.rectangle(116,36,180,8,0x0a1a2a).setOrigin(0,0.5).setDepth(81).setVisible(false));
-    this.barrierBar=a(this.add.rectangle(116,36,180,8,0x3498db).setOrigin(0,0.5).setDepth(82).setVisible(false));
-    a(this.add.text(113,36,'방어막',{fontSize:'9px',fill:'#3498db',fontFamily:'Arial'}).setOrigin(1,0.5).setDepth(82));
+    // 골드
+    sf(this.add.rectangle(sc(W-4), sc(4), sc(120), sc(22), 0x2a2000, 0.9).setOrigin(1, 0).setDepth(82).setStrokeStyle(sc(1), 0x888800));
+    this.goldText = sf(this.add.text(sc(W-8), sc(15), '', {fontSize:fs(12), fill:'#f1c40f', fontFamily:'Arial', fontStyle:'bold'}).setOrigin(1, 0.5).setDepth(83));
+
+    // ── 우측 하단 버튼 (screen 좌표 저장 → 수동 히트 판정)
+    // 공격 버튼 (화면: W-80, H-80) r=34
+    sf(this.add.circle(sc(W-80), sc(H-80), sc(34), 0x3a1a4a, 0.85).setDepth(81).setStrokeStyle(sc(2), 0x9b59b6));
+    sf(this.add.text(sc(W-80), sc(H-80), '⚔️', {fontSize:fs(22)}).setOrigin(0.5).setDepth(82));
+    this._btnAtk = {x:W-80, y:H-80, r:34};
+
+    // 스킬1 선풍참 (화면: W-80, H-158) r=30
+    sf(this.add.circle(sc(W-80), sc(H-158), sc(30), 0x2a1a3a, 0.85).setDepth(81).setStrokeStyle(sc(2), 0x6c3483));
+    sf(this.add.text(sc(W-80), sc(H-158), '🌀', {fontSize:fs(18)}).setOrigin(0.5).setDepth(82));
+    this.skill1CdOverlay = sf(this.add.circle(sc(W-80), sc(H-158), sc(30), 0x000000, 0).setDepth(91));
+    this.skill1CdText    = sf(this.add.text(sc(W-80), sc(H-158), '', {fontSize:fs(13), fill:'#ffffff', fontFamily:'Arial', fontStyle:'bold'}).setOrigin(0.5).setDepth(92));
+    this._btnSk1 = {x:W-80, y:H-158, r:30};
+
+    // 스킬2 대시 (화면: W-80, H-228) r=24
+    sf(this.add.circle(sc(W-80), sc(H-228), sc(24), 0x1a2a3a, 0.85).setDepth(81).setStrokeStyle(sc(2), 0x3498db));
+    sf(this.add.text(sc(W-80), sc(H-228), '💨', {fontSize:fs(15)}).setOrigin(0.5).setDepth(82));
+    this.skill2CdOverlay = sf(this.add.circle(sc(W-80), sc(H-228), sc(24), 0x000000, 0).setDepth(91));
+    this.skill2CdText    = sf(this.add.text(sc(W-80), sc(H-228), '', {fontSize:fs(11), fill:'#ffffff', fontFamily:'Arial', fontStyle:'bold'}).setOrigin(0.5).setDepth(92));
+    this._btnSk2 = {x:W-80, y:H-228, r:24};
+
+    // 스킬3 방어막 (화면: W-80, H-292) r=24
+    sf(this.add.circle(sc(W-80), sc(H-292), sc(24), 0x1a1a2a, 0.85).setDepth(81).setStrokeStyle(sc(2), 0x2980b9));
+    sf(this.add.text(sc(W-80), sc(H-292), '🛡️', {fontSize:fs(15)}).setOrigin(0.5).setDepth(82));
+    this.skill3CdOverlay = sf(this.add.circle(sc(W-80), sc(H-292), sc(24), 0x000000, 0).setDepth(91));
+    this.skill3CdText    = sf(this.add.text(sc(W-80), sc(H-292), '', {fontSize:fs(11), fill:'#ffffff', fontFamily:'Arial', fontStyle:'bold'}).setOrigin(0.5).setDepth(92));
+    this._btnSk3 = {x:W-80, y:H-292, r:24};
+
+    // 포션 (화면: W-142, H-80) r=24
+    sf(this.add.circle(sc(W-142), sc(H-80), sc(24), 0x0a2a1a, 0.85).setDepth(81).setStrokeStyle(sc(2), 0x2ecc71));
+    sf(this.add.text(sc(W-142), sc(H-80), '💊', {fontSize:fs(15)}).setOrigin(0.5).setDepth(82));
+    this._btnPot = {x:W-142, y:H-80, r:24};
   }
 
   _buildMobileButtons() {
-    const a = (o) => { this._hudCon.add(o); return o; };
-    const atkBtn=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-80,34,0x3a1a4a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
-    atkBtn.setStrokeStyle(2,0x9b59b6);
-    a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-80,'⚔️',{fontSize:'22px'}).setOrigin(0.5).setDepth(82));
-    atkBtn.on('pointerdown',()=>{ if (!this.pl.autoMode && this.pl.alive && !this.done) this._swingAttack(this.pl.facing,false); });
-
-    const sk1Btn=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-158,30,0x2a1a3a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
-    sk1Btn.setStrokeStyle(2,0x6c3483);
-    a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-158,'🌀',{fontSize:'18px'}).setOrigin(0.5).setDepth(82));
-    sk1Btn.on('pointerdown',()=>this._trySkill('spin'));
-
-    const sk2Btn=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-228,24,0x1a2a3a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
-    sk2Btn.setStrokeStyle(2,0x3498db);
-    a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-228,'💨',{fontSize:'15px'}).setOrigin(0.5).setDepth(82));
-    sk2Btn.on('pointerdown',()=>this._trySkill('dash'));
-
-    const sk3Btn=a(this.add.circle(GAME_WIDTH-80,GAME_HEIGHT-292,24,0x1a1a2a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
-    sk3Btn.setStrokeStyle(2,0x2980b9);
-    a(this.add.text(GAME_WIDTH-80,GAME_HEIGHT-292,'🛡️',{fontSize:'15px'}).setOrigin(0.5).setDepth(82));
-    sk3Btn.on('pointerdown',()=>this._trySkill('barrier'));
-
-    const potBtn=a(this.add.circle(GAME_WIDTH-142,GAME_HEIGHT-80,24,0x0a2a1a,0.8).setDepth(81).setInteractive({useHandCursor:true}));
-    potBtn.setStrokeStyle(2,0x2ecc71);
-    a(this.add.text(GAME_WIDTH-142,GAME_HEIGHT-80,'💊',{fontSize:'15px'}).setOrigin(0.5).setDepth(82));
-    potBtn.on('pointerdown',()=>this._usePotion());
+    // 버튼이 _buildHUD() 로 통합됨 — 수동 히트 판정 사용
   }
 
   _startNextWave() {
@@ -2591,13 +2619,13 @@ class FieldScene extends Phaser.Scene {
     // 웨이브마다 몬스터 수 증가 (보스 고정)
     const spawnCount = this.isBoss ? sd.count : sd.count + (this.currentWave - 1) * 2;
 
-    // 웨이브 알림 (HUD 컨테이너에 추가)
-    const wt=this.add.text(GAME_WIDTH/2, 80,
+    // 웨이브 알림 — scrollFactor(0) + sc() 좌표 변환
+    const _sc = v => v / FIELD_ZOOM;
+    const wt=this.add.text(_sc(GAME_WIDTH/2), _sc(80),
       this.isBoss ? '💀 보스 등장!' : `웨이브 ${this.currentWave} / ${this.TOTAL_WAVES}  🌊`, {
-      fontSize:'22px', fill:this.isBoss?'#e74c3c':'#f1c40f',
-      fontFamily:'Arial', fontStyle:'bold', stroke:'#000000', strokeThickness:4
-    }).setOrigin(0.5).setDepth(90).setAlpha(0);
-    this._hudCon.add(wt);
+      fontSize:`${Math.round(22/FIELD_ZOOM)}px`, fill:this.isBoss?'#e74c3c':'#f1c40f',
+      fontFamily:'Arial', fontStyle:'bold', stroke:'#000000', strokeThickness:Math.round(4/FIELD_ZOOM)
+    }).setOrigin(0.5).setDepth(90).setAlpha(0).setScrollFactor(0);
     this.tweens.add({targets:wt, alpha:1, duration:250, yoyo:true, hold:700, onComplete:()=>wt.destroy()});
 
     // 몬스터 스폰 — 플레이어 주변에 원형 배치, 더 넓은 거리
@@ -2624,15 +2652,17 @@ class FieldScene extends Phaser.Scene {
   }
 
   _showStageTitle() {
-    const t1=this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-24,`스테이지  ${this.stageId}`,{
-      fontSize:'30px',fill:'#ffffff',fontFamily:'Arial',fontStyle:'bold',stroke:'#000000',strokeThickness:5
-    }).setOrigin(0.5).setDepth(100).setAlpha(0);
-    this._hudCon.add(t1);
+    const sc = v => v / FIELD_ZOOM;
+    const W = GAME_WIDTH, H = GAME_HEIGHT;
+    const t1=this.add.text(sc(W/2), sc(H/2-24), `스테이지  ${this.stageId}`, {
+      fontSize:`${Math.round(30/FIELD_ZOOM)}px`, fill:'#ffffff', fontFamily:'Arial', fontStyle:'bold',
+      stroke:'#000000', strokeThickness:Math.round(5/FIELD_ZOOM)
+    }).setOrigin(0.5).setDepth(100).setAlpha(0).setScrollFactor(0);
     const sub=this.isBoss?'💀  BOSS  STAGE':this.stageDef.enemies.map(e=>ENEMY_DEFS[e]?.label||e).join(' · ');
-    const t2=this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+14,sub,{
-      fontSize:'14px',fill:this.isBoss?'#e87070':'#888888',fontFamily:'Arial',stroke:'#000000',strokeThickness:3
-    }).setOrigin(0.5).setDepth(100).setAlpha(0);
-    this._hudCon.add(t2);
+    const t2=this.add.text(sc(W/2), sc(H/2+14), sub, {
+      fontSize:`${Math.round(14/FIELD_ZOOM)}px`, fill:this.isBoss?'#e87070':'#888888', fontFamily:'Arial',
+      stroke:'#000000', strokeThickness:Math.round(3/FIELD_ZOOM)
+    }).setOrigin(0.5).setDepth(100).setAlpha(0).setScrollFactor(0);
     this.tweens.add({targets:[t1,t2],alpha:1,duration:350,yoyo:true,hold:1000,onComplete:()=>{t1.destroy();t2.destroy();}});
   }
 
@@ -2782,53 +2812,66 @@ class FieldScene extends Phaser.Scene {
     FIELD_DATA.cleared.add(this.stageId);
     PLAYER_STATS.hp=this.pl.hp;
 
-    const hc = (o) => { this._hudCon.add(o); return o; };
-    hc(this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.65).setDepth(90));
-    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-80,'✨  STAGE  CLEAR!',{
-      fontSize:'34px',fill:'#f1c40f',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:5
+    const sc = v => v / FIELD_ZOOM;
+    const fs = v => `${Math.round(v/FIELD_ZOOM)}px`;
+    const sf = o => o.setScrollFactor(0);
+    const W = GAME_WIDTH, H = GAME_HEIGHT;
+    sf(this.add.rectangle(sc(W/2), sc(H/2), sc(W), sc(H), 0x000000, 0.65).setDepth(90));
+    sf(this.add.text(sc(W/2), sc(H/2-80), '✨  STAGE  CLEAR!', {
+      fontSize:fs(34), fill:'#f1c40f', fontFamily:'Arial', fontStyle:'bold',
+      stroke:'#000', strokeThickness:Math.round(5/FIELD_ZOOM)
     }).setOrigin(0.5).setDepth(91));
     this.cameras.main.flash(400,255,220,60);
 
     PLAYER_STATS.exp+=this.stageDef.expReward;
-    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-44,`EXP  +${this.stageDef.expReward}`,{fontSize:'16px',fill:'#2ecc71',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
-    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-22,`Lv.${PLAYER_STATS.level}  HP:${this.pl.hp}/${this.pl.maxHp}`,{fontSize:'13px',fill:'#8888aa',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
+    sf(this.add.text(sc(W/2), sc(H/2-44), `EXP  +${this.stageDef.expReward}`, {fontSize:fs(16), fill:'#2ecc71', fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
+    sf(this.add.text(sc(W/2), sc(H/2-22), `Lv.${PLAYER_STATS.level}  HP:${this.pl.hp}/${this.pl.maxHp}`, {fontSize:fs(13), fill:'#8888aa', fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
 
     if (this.isBoss) {
-      hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+2,'🏆  골렘 수호자 처치!',{fontSize:'15px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91));
+      sf(this.add.text(sc(W/2), sc(H/2+2), '🏆  골렘 수호자 처치!', {fontSize:fs(15), fill:'#e74c3c', fontFamily:'Arial', fontStyle:'bold'}).setOrigin(0.5).setDepth(91));
       if (this.stageDef.drops?.length) {
         const drop=rollOnce(this.stageDef.drops);
         if (drop.id==='gold') { PLAYER_GOLD+=drop.qty; } else { playerInventory.add(drop.id,drop.qty); }
         const di=ITEM_DEFS[drop.id];
         const col=di?('#'+di.color.toString(16).padStart(6,'0')):'#ffffff';
-        hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2+22,`${di?.icon||''}  ${di?.label||drop.id}  ×${drop.qty}  획득!`,{fontSize:'14px',fill:col,fontFamily:'Arial',fontStyle:'bold'}).setOrigin(0.5).setDepth(91));
+        sf(this.add.text(sc(W/2), sc(H/2+22), `${di?.icon||''}  ${di?.label||drop.id}  ×${drop.qty}  획득!`, {fontSize:fs(14), fill:col, fontFamily:'Arial', fontStyle:'bold'}).setOrigin(0.5).setDepth(91));
       }
     }
-
     this._addResultButtons(true);
   }
 
   _gameOver() {
     if (this.done) return;
     this.done=true; PLAYER_STATS.hp=Math.max(1,this.pl.hp);
-    const hc = (o) => { this._hudCon.add(o); return o; };
-    hc(this.add.rectangle(GAME_WIDTH/2,GAME_HEIGHT/2,GAME_WIDTH,GAME_HEIGHT,0x000000,0.75).setDepth(90));
-    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-60,'💀  GAME  OVER',{
-      fontSize:'34px',fill:'#e74c3c',fontFamily:'Arial',fontStyle:'bold',stroke:'#000',strokeThickness:5
+    const sc = v => v / FIELD_ZOOM;
+    const fs = v => `${Math.round(v/FIELD_ZOOM)}px`;
+    const sf = o => o.setScrollFactor(0);
+    const W = GAME_WIDTH, H = GAME_HEIGHT;
+    sf(this.add.rectangle(sc(W/2), sc(H/2), sc(W), sc(H), 0x000000, 0.75).setDepth(90));
+    sf(this.add.text(sc(W/2), sc(H/2-60), '💀  GAME  OVER', {
+      fontSize:fs(34), fill:'#e74c3c', fontFamily:'Arial', fontStyle:'bold',
+      stroke:'#000', strokeThickness:Math.round(5/FIELD_ZOOM)
     }).setOrigin(0.5).setDepth(91));
-    hc(this.add.text(GAME_WIDTH/2,GAME_HEIGHT/2-20,`스테이지  ${this.stageId}  실패`,{fontSize:'14px',fill:'#888888',fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
+    sf(this.add.text(sc(W/2), sc(H/2-20), `스테이지  ${this.stageId}  실패`, {fontSize:fs(14), fill:'#888888', fontFamily:'Arial'}).setOrigin(0.5).setDepth(91));
     this.cameras.main.shake(300,0.012);
     this._addResultButtons(false);
   }
 
   _addResultButtons(isWin) {
-    const by=GAME_HEIGHT/2+54;
-    const hc = (o) => { this._hudCon.add(o); return o; };
-    const r1=hc(this.add.rectangle(GAME_WIDTH/2-86,by,152,40,isWin?0x0e2a1a:0x2a0e0e).setInteractive({useHandCursor:true}).setDepth(91).setStrokeStyle(2,isWin?0x2ecc71:0xe74c3c));
-    hc(this.add.text(GAME_WIDTH/2-86,by,'다시 하기',{fontSize:'14px',fill:isWin?'#2ecc71':'#e74c3c',fontFamily:'Arial'}).setOrigin(0.5).setDepth(92));
-    r1.on('pointerdown',()=>{ PLAYER_STATS.hp=PLAYER_STATS.maxHp; this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('FieldScene')); });
-    const r2=hc(this.add.rectangle(GAME_WIDTH/2+86,by,152,40,0x0e0e2a).setInteractive({useHandCursor:true}).setDepth(91).setStrokeStyle(2,0x9b59b6));
-    hc(this.add.text(GAME_WIDTH/2+86,by,'스테이지 선택',{fontSize:'14px',fill:'#c39bd3',fontFamily:'Arial'}).setOrigin(0.5).setDepth(92));
-    r2.on('pointerdown',()=>this._exitToSelect());
+    const sc = v => v / FIELD_ZOOM;
+    const fs = v => `${Math.round(v/FIELD_ZOOM)}px`;
+    const sf = o => o.setScrollFactor(0);
+    const W = GAME_WIDTH, H = GAME_HEIGHT;
+    const by = H/2 + 54;  // 화면 y (screen 좌표)
+    sf(this.add.rectangle(sc(W/2-86), sc(by), sc(152), sc(40), isWin?0x0e2a1a:0x2a0e0e).setDepth(91).setStrokeStyle(sc(2), isWin?0x2ecc71:0xe74c3c));
+    sf(this.add.text(sc(W/2-86), sc(by), '다시 하기', {fontSize:fs(14), fill:isWin?'#2ecc71':'#e74c3c', fontFamily:'Arial'}).setOrigin(0.5).setDepth(92));
+    sf(this.add.rectangle(sc(W/2+86), sc(by), sc(152), sc(40), 0x0e0e2a).setDepth(91).setStrokeStyle(sc(2), 0x9b59b6));
+    sf(this.add.text(sc(W/2+86), sc(by), '스테이지 선택', {fontSize:fs(14), fill:'#c39bd3', fontFamily:'Arial'}).setOrigin(0.5).setDepth(92));
+    // 수동 히트 판정 — 화면 좌표로 저장
+    this._resultBtns = [
+      { x:W/2-86, y:by, hw:76, hh:20, fn:()=>{ PLAYER_STATS.hp=PLAYER_STATS.maxHp; this.cameras.main.fadeOut(250); this.cameras.main.once('camerafadeoutcomplete',()=>this.scene.start('FieldScene')); }},
+      { x:W/2+86, y:by, hw:76, hh:20, fn:()=>this._exitToSelect() }
+    ];
   }
 
   _exitToSelect() {
@@ -2929,8 +2972,6 @@ class FieldScene extends Phaser.Scene {
   update(t,delta) {
     const dt=delta/1000;
     const p=this.pl;
-    // HUD 컨테이너를 카메라 스크롤에 동기화 → 터치 히트 영역과 렌더 위치 일치
-    if (this._hudCon) this._hudCon.setPosition(this.cameras.main.scrollX, this.cameras.main.scrollY);
     this.joystick.update(this);
     if (this.done) return;
 
